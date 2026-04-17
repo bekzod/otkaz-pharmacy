@@ -1,4 +1,5 @@
 const Redis = require('ioredis');
+const logger = require('./logger').child({ component: 'redis' });
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
 
@@ -50,7 +51,7 @@ const redisClient =
 
 if (process.env.NODE_ENV !== 'test') {
   redisClient.on('error', (err) => {
-    console.error('Redis connection error:', err?.message || err);
+    logger.error({ err }, 'connection error');
   });
 }
 

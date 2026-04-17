@@ -1,8 +1,9 @@
 require('dotenv').config();
 
-const crawlerService = require('./service');
-const logger = require('../common/logger').child({ component: 'telegram-crawler-process' });
+const { startServer } = require('./src/server/startServer');
+const logger = require('./src/common/logger').child({ component: 'server' });
 
+let runtime = null;
 let shutdownPromise = null;
 
 function handleShutdown(signal) {
@@ -12,7 +13,9 @@ function handleShutdown(signal) {
 
   shutdownPromise = (async () => {
     try {
-      await crawlerService.stopCrawler();
+      if (runtime) {
+        await runtime.stopServer();
+      }
       process.exit(0);
     } catch (error) {
       logger.error({ err: error }, 'shutdown failed');
@@ -24,10 +27,13 @@ function handleShutdown(signal) {
 }
 
 async function main() {
-  await crawlerService.startCrawler();
+  runtime = await startServer();
+  logger.info({ port: runtime.port }, 'listening');
 
   process.on('SIGINT', () => handleShutdown('SIGINT'));
   process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+
+  return runtime;
 }
 
 if (require.main === module) {
@@ -37,4 +43,7 @@ if (require.main === module) {
   });
 }
 
-module.exports = crawlerService;
+module.exports = {
+  main,
+  startServer,
+};

@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Otkaz Pharmacy Analytics</title>
+    <link rel="stylesheet" href="/app.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <div class="glow glow-left"></div>
+      <div class="glow glow-right"></div>
+      <main class="panel">
+        <section class="hero">
+          <p class="eyebrow">Telegram Medicine Analytics</p>
+          <h1>Rolling counters with per-row reset points.</h1>
+          <p class="lede">
+            Track extracted medicine mentions across 1, 3, 30, and 90 day windows, then reset
+            individual rows when you want a fresh baseline.
+          </p>
+        </section>
+
+        <section class="status-grid" aria-label="Service status overview">
+          <article class="status-card accent">
+            <p class="status-label">Server</p>
+            <strong id="server-state">Checking</strong>
+            <span id="server-uptime">Loading uptime</span>
+          </article>
+
+          <article class="status-card">
+            <p class="status-label">Crawler</p>
+            <strong id="crawler-state">Starting</strong>
+            <span id="crawler-iteration">Waiting for status</span>
+          </article>
+
+          <article class="status-card">
+            <p class="status-label">Analytics</p>
+            <strong id="analytics-updated">Loading</strong>
+            <span id="current-group">Current group unavailable</span>
+          </article>
+
+          <article class="status-card">
+            <p class="status-label">Last error</p>
+            <strong id="last-error">None</strong>
+            <span id="started-at">Loading</span>
+          </article>
+        </section>
+
+        <section class="details-card analytics-card">
+          <div class="details-header analytics-header">
+            <div>
+              <p class="section-kicker">Counters</p>
+              <h2>Medicine mentions</h2>
+              <p class="section-copy" id="analytics-summary">Loading counters</p>
+            </div>
+
+            <div class="toolbar">
+              <div class="tab-group" role="tablist" aria-label="Medicine counter views">
+                <button class="tab-button is-active" type="button" data-view="tradeName">
+                  By trade name
+                </button>
+                <button class="tab-button" type="button" data-view="name">By name</button>
+                <button class="tab-button" type="button" data-view="medicineId">
+                  By medicine ID
+                </button>
+              </div>
+
+              <button id="refresh-button" type="button">Refresh</button>
+            </div>
+          </div>
+
+          <div id="banner" class="banner" hidden></div>
+
+          <div class="table-wrap">
+            <table class="counter-table">
+              <thead>
+                <tr>
+                  <th scope="col">Medicine</th>
+                  <th scope="col">1d</th>
+                  <th scope="col">3d</th>
+                  <th scope="col">30d</th>
+                  <th scope="col">90d</th>
+                  <th scope="col">Reset</th>
+                  <th scope="col">Undo last</th>
+                </tr>
+              </thead>
+              <tbody id="medicine-table-body">
+                <tr class="empty-row">
+                  <td colspan="7">Loading medicine counters.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <section class="chart-card" aria-label="Selected medicine trend">
+            <div class="chart-header">
+              <div>
+                <p class="section-kicker">Trend</p>
+                <h3>90-day daily counts</h3>
+                <p class="section-copy" id="chart-summary">
+                  Select medicines from the table to compare their daily counts.
+                </p>
+              </div>
+            </div>
+
+            <div class="chart-shell">
+              <svg id="trend-chart" viewBox="0 0 920 360" preserveAspectRatio="none"></svg>
+            </div>
+
+            <div id="chart-legend" class="chart-legend"></div>
+          </section>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

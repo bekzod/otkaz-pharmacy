@@ -5,6 +5,7 @@
   "author": "bek <bekzod@me.com>",
   "license": "MIT",
   "scripts": {
+    "start": "node index.js",
     "test": "jest",
     "db:migrate": "sequelize-cli db:migrate",
     "db:rollback": "sequelize-cli db:migrate:undo",
@@ -20,6 +21,8 @@
     "express": "5.2.1",
     "input": "1.0.1",
     "ioredis": "5.10.0",
+    "openai": "6.34.0",
+    "pino": "9.7.0",
     "pg": "8.20.0",
     "pg-hstore": "2.3.4",
     "sequelize": "6.37.8",

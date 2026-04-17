@@ -46,6 +46,27 @@ const TelegramMessageImage = sequelize.define(
       type: DataTypes.BLOB('long'),
       allowNull: false,
     },
+    text_extraction_status: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: 'pending',
+    },
+    text_extraction_model: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    text_extracted_lines: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+    },
+    text_extraction_error: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    text_extracted_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   },
   {
     tableName: 'telegram_message_images',
