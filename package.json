@@ -1,0 +1,30 @@
+{
+  "name": "otkaz-pharmacy",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "bek <bekzod@me.com>",
+  "license": "MIT",
+  "scripts": {
+    "test": "jest",
+    "db:migrate": "sequelize-cli db:migrate",
+    "db:rollback": "sequelize-cli db:migrate:undo",
+    "crawler": "node src/crawler-telegram/crawler.js",
+    "telegram:auth": "node src/crawler-telegram/auth.js"
+  },
+  "volta": {
+    "node": "24.15.0",
+    "yarn": "1.22.22"
+  },
+  "dependencies": {
+    "dotenv": "16.4.5",
+    "input": "1.0.1",
+    "pg": "8.20.0",
+    "pg-hstore": "2.3.4",
+    "sequelize": "6.37.8",
+    "telegram": "2.26.22"
+  },
+  "devDependencies": {
+    "jest": "30.3.0",
+    "sequelize-cli": "6.6.2"
+  }
+}
