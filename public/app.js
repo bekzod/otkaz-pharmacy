@@ -196,6 +196,7 @@ const state = {
   socketReconnectTimer: null,
   openMenuKey: null,
   searchQuery: '',
+  sort: { column: null, direction: null },
   selectionByView: {
     tradeName: [],
     name: [],
@@ -668,7 +669,8 @@ function renderAnalytics() {
   const config = VIEW_CONFIG[state.activeView];
   const allRows = getRowsForActiveView();
   const searchQuery = state.searchQuery.trim();
-  const rows = filterRowsBySearch(allRows, searchQuery);
+  const filteredRows = filterRowsBySearch(allRows, searchQuery);
+  const rows = window.sortRows(filteredRows, state.sort);
   const selectedKeys = new Set(getSelectedKeys());
   const previousRows = new Map(
     (state.previousAnalytics?.[state.activeView] || []).map((row) => [row.key, row]),
@@ -1115,6 +1117,7 @@ document.addEventListener('click', (event) => {
   if (viewButton) {
     state.activeView = viewButton.dataset.view;
     state.openMenuKey = null;
+    state.sort = { column: null, direction: null };
     syncSelection();
     renderAnalytics();
     refreshSeries();
