@@ -223,7 +223,7 @@ describe('crawler service', () => {
       update: jest.fn().mockResolvedValue(),
     });
 
-    expect(client.getMessages).toHaveBeenCalledWith(77, {
+    expect(client.getMessages).toHaveBeenCalledWith(-10077, {
       limit: 50,
     });
   });

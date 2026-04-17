@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ignored Texts - Otkaz Pharmacy Analytics</title>
+    <link rel="stylesheet" href="/app.css" />
+    <script src="/i18n.js" defer></script>
+    <script src="/toast.js" defer></script>
+    <script src="/ignored-texts.js" defer></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <div class="glow glow-left"></div>
+      <div class="glow glow-right"></div>
+      <main class="panel">
+        <div class="topbar">
+          <nav class="page-nav" aria-label="Primary navigation">
+            <a class="page-nav-link" href="/">Counters</a>
+            <a class="page-nav-link is-active" href="/ignored-texts">Ignored Texts</a>
+          </nav>
+
+          <div class="lang-switch">
+            <select
+              id="language-select"
+              class="language-select"
+              aria-label="Language"
+              data-i18n-attr="aria-label:aria.language"
+            >
+              <option value="ru">🇷🇺 Русский</option>
+              <option value="uz-Cyrl">🇺🇿 Ўзбекча</option>
+              <option value="uz-Latn">🇺🇿 Oʻzbekcha</option>
+            </select>
+          </div>
+        </div>
+
+        <section class="hero">
+          <p class="eyebrow">Ignored Texts</p>
+          <h1>Restore ignored text when it should count again.</h1>
+          <p class="lede">
+            Restoring a text immediately puts all matching stored entries back into the analytics
+            counts. The 90-day matches column shows how many current-window rows each ignored text
+            would re-enable.
+          </p>
+        </section>
+
+        <section class="details-card analytics-card">
+          <div class="details-header">
+            <div>
+              <p class="section-kicker">Ignored</p>
+              <h2>Global ignore list</h2>
+              <p class="section-copy" id="ignored-summary">Loading ignored texts.</p>
+            </div>
+
+            <div class="toolbar">
+              <button id="refresh-button" type="button" data-i18n="refresh">Refresh</button>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table class="counter-table">
+              <thead>
+                <tr>
+                  <th scope="col">Ignored text</th>
+                  <th scope="col">Ignored at</th>
+                  <th scope="col">90d matches</th>
+                  <th scope="col">Restore</th>
+                </tr>
+              </thead>
+              <tbody id="ignored-text-table-body">
+                <tr class="empty-row">
+                  <td colspan="4">Loading ignored texts.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

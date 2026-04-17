@@ -1,4 +1,5 @@
 const { QueryTypes } = require('sequelize');
+const { normalizeCapturedText } = require('../common/capturedText');
 
 const DIMENSIONS = Object.freeze({
   name: {
@@ -24,6 +25,7 @@ const DIMENSIONS = Object.freeze({
       LOWER(
         COALESCE(
           NULLIF(BTRIM(tme.parser_result->>'trade_name'), ''),
+          NULLIF(BTRIM(tme.parser_result->'attributes'->>'trade_name_text'), ''),
           NULLIF(BTRIM(tme.parser_result->>'name'), ''),
           NULLIF(BTRIM(tme.parser_result->>'normalized_query'), ''),
           NULLIF(BTRIM(tme.source_text), '')
@@ -33,6 +35,7 @@ const DIMENSIONS = Object.freeze({
     labelExpression: `
       COALESCE(
         NULLIF(BTRIM(tme.parser_result->>'trade_name'), ''),
+        NULLIF(BTRIM(tme.parser_result->'attributes'->>'trade_name_text'), ''),
         NULLIF(BTRIM(tme.parser_result->>'name'), ''),
         NULLIF(BTRIM(tme.parser_result->>'normalized_query'), ''),
         NULLIF(BTRIM(tme.source_text), '')
@@ -44,6 +47,7 @@ const DIMENSIONS = Object.freeze({
     labelExpression: `
       COALESCE(
         NULLIF(BTRIM(tme.parser_result->>'trade_name'), ''),
+        NULLIF(BTRIM(tme.parser_result->'attributes'->>'trade_name_text'), ''),
         NULLIF(BTRIM(tme.parser_result->>'name'), ''),
         NULLIF(BTRIM(tme.parser_result->>'normalized_query'), ''),
         NULLIF(BTRIM(tme.source_text), ''),
@@ -52,6 +56,23 @@ const DIMENSIONS = Object.freeze({
     `,
   },
 });
+
+function buildNonIgnoredSourceTextCondition(alias = 'tme') {
+  return `NOT EXISTS (
+    SELECT 1
+    FROM ignored_source_texts ist
+    WHERE ist.source_text = ${alias}.source_text
+  )`;
+}
+
+function buildNonIgnoredDimensionCondition(dimension, keyExpression) {
+  return `NOT EXISTS (
+    SELECT 1
+    FROM ignored_dimension_values idv
+    WHERE idv.dimension = '${dimension}'
+      AND idv.key = ${keyExpression}
+  )`;
+}
 
 function createHttpError(statusCode, message) {
   const error = new Error(message);
@@ -104,10 +125,37 @@ function serializeResetPoint(record) {
   };
 }
 
+function serializeIgnoredText(record) {
+  if (!record) return null;
+
+  return {
+    id: record.id,
+    sourceText: record.source_text,
+    createdAt: record.created_at instanceof Date ? record.created_at.toISOString() : record.created_at,
+    updatedAt: record.updated_at instanceof Date ? record.updated_at.toISOString() : record.updated_at,
+  };
+}
+
+function normalizeIgnoredSourceText(value) {
+  const normalized = normalizeCapturedText(value);
+  if (!normalized) {
+    throw createHttpError(400, 'sourceText is required');
+  }
+
+  return normalized;
+}
+
 function toPayloadKey(dimension) {
   if (dimension === 'trade_name') return 'tradeName';
   if (dimension === 'medicine_id') return 'medicineId';
   return 'name';
+}
+
+function fromPayloadKey(value) {
+  if (value === 'tradeName' || value === 'trade_name') return 'trade_name';
+  if (value === 'medicineId' || value === 'medicine_id') return 'medicine_id';
+  if (value === 'name') return 'name';
+  return null;
 }
 
 function buildDimensionQuery(dimension) {
@@ -117,6 +165,7 @@ function buildDimensionQuery(dimension) {
   }
 
   const medicineIdExpression = `NULLIF(BTRIM(tme.medicine_id), '')`;
+  const dimensionFilter = buildNonIgnoredDimensionCondition(dimension, config.keyExpression);
 
   return `
     WITH recent_entries AS (
@@ -130,6 +179,8 @@ function buildDimensionQuery(dimension) {
       JOIN telegram_medicine_entries tme ON tme.message_id = tm.id
       WHERE tm.message_date >= CAST(:windowStart AS timestamptz)
         AND ${config.keyExpression} IS NOT NULL
+        AND ${buildNonIgnoredSourceTextCondition('tme')}
+        AND ${dimensionFilter}
 
       UNION ALL
 
@@ -143,6 +194,8 @@ function buildDimensionQuery(dimension) {
       WHERE tm.message_date IS NULL
         AND tme.created_at >= CAST(:windowStart AS timestamptz)
         AND ${config.keyExpression} IS NOT NULL
+        AND ${buildNonIgnoredSourceTextCondition('tme')}
+        AND ${dimensionFilter}
     ),
     latest_resets AS (
       SELECT DISTINCT ON (rp.reset_key)
@@ -229,6 +282,7 @@ function buildSeriesQuery(dimension) {
   }
 
   const medicineIdExpression = `NULLIF(BTRIM(tme.medicine_id), '')`;
+  const dimensionFilter = buildNonIgnoredDimensionCondition(dimension, config.keyExpression);
 
   return `
     WITH selected_keys AS (
@@ -246,6 +300,8 @@ function buildSeriesQuery(dimension) {
       WHERE tm.message_date >= CAST(:seriesStart AS timestamptz)
         AND ${config.keyExpression} IS NOT NULL
         AND ${config.keyExpression} = ANY(ARRAY[:keys]::text[])
+        AND ${buildNonIgnoredSourceTextCondition('tme')}
+        AND ${dimensionFilter}
 
       UNION ALL
 
@@ -260,6 +316,8 @@ function buildSeriesQuery(dimension) {
         AND tme.created_at >= CAST(:seriesStart AS timestamptz)
         AND ${config.keyExpression} IS NOT NULL
         AND ${config.keyExpression} = ANY(ARRAY[:keys]::text[])
+        AND ${buildNonIgnoredSourceTextCondition('tme')}
+        AND ${dimensionFilter}
     ),
     latest_resets AS (
       SELECT DISTINCT ON (rp.reset_key)
@@ -321,7 +379,51 @@ function buildSeriesQuery(dimension) {
   `;
 }
 
-function mapDimensionRow(row) {
+function buildIgnoredTextQuery() {
+  return `
+    WITH recent_matches AS (
+      SELECT
+        tm.message_date AS event_at,
+        NULLIF(BTRIM(tme.source_text), '') AS source_text
+      FROM telegram_messages tm
+      JOIN telegram_medicine_entries tme ON tme.message_id = tm.id
+      WHERE tm.message_date >= CAST(:windowStart AS timestamptz)
+        AND NULLIF(BTRIM(tme.source_text), '') IS NOT NULL
+
+      UNION ALL
+
+      SELECT
+        tme.created_at AS event_at,
+        NULLIF(BTRIM(tme.source_text), '') AS source_text
+      FROM telegram_messages tm
+      JOIN telegram_medicine_entries tme ON tme.message_id = tm.id
+      WHERE tm.message_date IS NULL
+        AND tme.created_at >= CAST(:windowStart AS timestamptz)
+        AND NULLIF(BTRIM(tme.source_text), '') IS NOT NULL
+    )
+    SELECT
+      ist.source_text AS key,
+      ist.source_text AS label,
+      ist.created_at AS ignored_at,
+      COUNT(rm.event_at) FILTER (
+        WHERE rm.event_at >= CAST(:now AS timestamptz) - INTERVAL '90 days'
+      )::int AS count_90d
+    FROM ignored_source_texts ist
+    LEFT JOIN recent_matches rm ON rm.source_text = ist.source_text
+    GROUP BY ist.id, ist.source_text, ist.created_at
+    ORDER BY ist.created_at DESC, ist.source_text ASC
+  `;
+}
+
+const UNDO_WINDOW_MS = 30 * 60 * 1000;
+
+function mapDimensionRow(row, activeNow) {
+  const lastResetAt = row.last_reset_at ? new Date(row.last_reset_at) : null;
+  const withinUndoWindow =
+    lastResetAt && activeNow
+      ? activeNow.getTime() - lastResetAt.getTime() <= UNDO_WINDOW_MS
+      : Boolean(lastResetAt);
+
   return {
     key: row.key,
     label: row.label || row.key,
@@ -330,8 +432,17 @@ function mapDimensionRow(row) {
     count3d: Number(row.count_3d || 0),
     count30d: Number(row.count_30d || 0),
     count90d: Number(row.count_90d || 0),
-    lastResetAt: row.last_reset_at ? new Date(row.last_reset_at).toISOString() : null,
-    canUndoLastReset: Boolean(row.last_reset_at),
+    lastResetAt: lastResetAt ? lastResetAt.toISOString() : null,
+    canUndoLastReset: Boolean(withinUndoWindow),
+  };
+}
+
+function mapIgnoredTextRow(row) {
+  return {
+    key: row.key,
+    label: row.label || row.key,
+    ignoredAt: row.ignored_at ? new Date(row.ignored_at).toISOString() : null,
+    count90d: Number(row.count_90d || 0),
   };
 }
 
@@ -354,10 +465,18 @@ function createMedicineAnalyticsService({ models, now = () => new Date() } = {})
     throw new Error('createMedicineAnalyticsService requires models with sequelize');
   }
 
-  const { sequelize, ResetPoint } = models;
+  const { sequelize, ResetPoint, IgnoredSourceText, IgnoredDimensionValue } = models;
 
   if (!ResetPoint) {
     throw new Error('createMedicineAnalyticsService requires ResetPoint');
+  }
+
+  if (!IgnoredSourceText) {
+    throw new Error('createMedicineAnalyticsService requires IgnoredSourceText');
+  }
+
+  if (!IgnoredDimensionValue) {
+    throw new Error('createMedicineAnalyticsService requires IgnoredDimensionValue');
   }
 
   function resolveNow(nowValue) {
@@ -380,7 +499,7 @@ function createMedicineAnalyticsService({ models, now = () => new Date() } = {})
       type: QueryTypes.SELECT,
     });
 
-    return rows.map(mapDimensionRow);
+    return rows.map((row) => mapDimensionRow(row, activeNow));
   }
 
   async function getDimensionRow(dimension, resetKey, { nowValue } = {}) {
@@ -470,6 +589,156 @@ function createMedicineAnalyticsService({ models, now = () => new Date() } = {})
     };
   }
 
+  async function getIgnoredDimensionValues() {
+    const records = await IgnoredDimensionValue.findAll({
+      order: [['created_at', 'DESC']],
+    });
+
+    return records.map((record) => ({
+      id: record.id,
+      kind: 'dimensionValue',
+      dimension: toPayloadKey(record.dimension),
+      internalDimension: record.dimension,
+      key: record.key,
+      label: record.key,
+      ignoredAt:
+        record.created_at instanceof Date
+          ? record.created_at.toISOString()
+          : record.created_at,
+    }));
+  }
+
+  async function getIgnoredTexts({ nowValue } = {}) {
+    const activeNow = resolveNow(nowValue);
+    const windowStart = new Date(activeNow.getTime() - 90 * 24 * 60 * 60 * 1000);
+    const sourceTextRows = await sequelize.query(buildIgnoredTextQuery(), {
+      replacements: {
+        now: activeNow.toISOString(),
+        windowStart: windowStart.toISOString(),
+      },
+      type: QueryTypes.SELECT,
+    });
+
+    const sourceTexts = sourceTextRows.map((row) => ({
+      ...mapIgnoredTextRow(row),
+      kind: 'sourceText',
+    }));
+
+    const dimensionValues = await getIgnoredDimensionValues();
+
+    return {
+      generatedAt: activeNow.toISOString(),
+      rows: [...dimensionValues, ...sourceTexts],
+    };
+  }
+
+  async function ignoreSourceText({ sourceText, nowValue } = {}) {
+    const normalizedSourceText = normalizeIgnoredSourceText(sourceText);
+    const activeNow = resolveNow(nowValue);
+    const [ignoredText, created] = await IgnoredSourceText.findOrCreate({
+      where: {
+        source_text: normalizedSourceText,
+      },
+      defaults: {
+        source_text: normalizedSourceText,
+      },
+    });
+
+    return {
+      generatedAt: activeNow.toISOString(),
+      created,
+      ignoredText: serializeIgnoredText(ignoredText),
+      rows: (await getIgnoredTexts({ nowValue: activeNow })).rows,
+    };
+  }
+
+  async function ignoreDimensionValue({ dimension, key, nowValue } = {}) {
+    const internalDimension = fromPayloadKey(dimension);
+    if (!internalDimension || !DIMENSIONS[internalDimension]) {
+      throw createHttpError(400, 'Unsupported analytics dimension');
+    }
+
+    const normalizedKey = normalizeResetKey(internalDimension, key);
+    const activeNow = resolveNow(nowValue);
+
+    const [record, created] = await IgnoredDimensionValue.findOrCreate({
+      where: {
+        dimension: internalDimension,
+        key: normalizedKey,
+      },
+      defaults: {
+        dimension: internalDimension,
+        key: normalizedKey,
+      },
+    });
+
+    return {
+      generatedAt: activeNow.toISOString(),
+      created,
+      ignoredDimensionValue: {
+        id: record.id,
+        dimension: toPayloadKey(internalDimension),
+        key: normalizedKey,
+      },
+      rows: (await getIgnoredTexts({ nowValue: activeNow })).rows,
+    };
+  }
+
+  async function restoreIgnoredDimensionValue({ dimension, key, nowValue } = {}) {
+    const internalDimension = fromPayloadKey(dimension);
+    if (!internalDimension || !DIMENSIONS[internalDimension]) {
+      throw createHttpError(400, 'Unsupported analytics dimension');
+    }
+
+    const normalizedKey = normalizeResetKey(internalDimension, key);
+    const activeNow = resolveNow(nowValue);
+
+    const record = await IgnoredDimensionValue.findOne({
+      where: {
+        dimension: internalDimension,
+        key: normalizedKey,
+      },
+    });
+
+    if (!record) {
+      throw createHttpError(404, 'No ignored dimension value found');
+    }
+
+    await record.destroy();
+
+    return {
+      generatedAt: activeNow.toISOString(),
+      restoredDimensionValue: {
+        dimension: toPayloadKey(internalDimension),
+        key: normalizedKey,
+      },
+      rows: (await getIgnoredTexts({ nowValue: activeNow })).rows,
+    };
+  }
+
+  async function restoreIgnoredSourceText({ sourceText, nowValue } = {}) {
+    const normalizedSourceText = normalizeIgnoredSourceText(sourceText);
+    const activeNow = resolveNow(nowValue);
+    const ignoredText = await IgnoredSourceText.findOne({
+      where: {
+        source_text: normalizedSourceText,
+      },
+    });
+
+    if (!ignoredText) {
+      throw createHttpError(404, 'No ignored text found for this captured text');
+    }
+
+    const restoredText = serializeIgnoredText(ignoredText);
+    await ignoredText.destroy();
+
+    return {
+      generatedAt: activeNow.toISOString(),
+      restoredText,
+      rows: (await getIgnoredTexts({ nowValue: activeNow })).rows,
+    };
+  }
+
   async function createResetPoint({ dimension, resetKey, nowValue } = {}) {
     if (!DIMENSIONS[dimension]) {
       throw createHttpError(400, 'Unsupported analytics dimension');
@@ -516,6 +785,13 @@ function createMedicineAnalyticsService({ models, now = () => new Date() } = {})
       throw createHttpError(404, 'No reset point found for this medicine row');
     }
 
+    const createdAt = resetPoint.reset_at instanceof Date
+      ? resetPoint.reset_at
+      : new Date(resetPoint.reset_at);
+    if (activeNow.getTime() - createdAt.getTime() > UNDO_WINDOW_MS) {
+      throw createHttpError(410, 'Reset point can only be undone within 30 minutes of creation');
+    }
+
     const deletedResetPoint = serializeResetPoint(resetPoint);
     await resetPoint.destroy();
 
@@ -530,6 +806,11 @@ function createMedicineAnalyticsService({ models, now = () => new Date() } = {})
   return {
     getAnalytics,
     getSeries,
+    getIgnoredTexts,
+    ignoreSourceText,
+    restoreIgnoredSourceText,
+    ignoreDimensionValue,
+    restoreIgnoredDimensionValue,
     createResetPoint,
     undoLatestResetPoint,
   };

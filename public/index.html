@@ -1,10 +1,12 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Otkaz Pharmacy Analytics</title>
+    <title data-i18n="title">Otkaz Pharmacy Analytics</title>
     <link rel="stylesheet" href="/app.css" />
+    <script src="/i18n.js" defer></script>
+    <script src="/toast.js" defer></script>
     <script src="/app.js" defer></script>
   </head>
   <body>
@@ -12,82 +14,88 @@
       <div class="glow glow-left"></div>
       <div class="glow glow-right"></div>
       <main class="panel">
+        <div class="topbar">
+          <nav class="page-nav" aria-label="Primary navigation">
+            <a class="page-nav-link is-active" href="/">Counters</a>
+            <a class="page-nav-link" href="/ignored-texts">Ignored Texts</a>
+          </nav>
+
+          <div class="lang-switch">
+            <select
+              id="language-select"
+              class="language-select"
+              aria-label="Language"
+              data-i18n-attr="aria-label:aria.language"
+            >
+              <option value="ru">🇷🇺 Русский</option>
+              <option value="uz-Cyrl">🇺🇿 Ўзбекча</option>
+              <option value="uz-Latn">🇺🇿 Oʻzbekcha</option>
+            </select>
+          </div>
+        </div>
+
         <section class="hero">
-          <p class="eyebrow">Telegram Medicine Analytics</p>
-          <h1>Rolling counters with per-row reset points.</h1>
-          <p class="lede">
-            Track extracted medicine mentions across 1, 3, 30, and 90 day windows, then reset
-            individual rows when you want a fresh baseline.
-          </p>
-        </section>
-
-        <section class="status-grid" aria-label="Service status overview">
-          <article class="status-card accent">
-            <p class="status-label">Server</p>
-            <strong id="server-state">Checking</strong>
-            <span id="server-uptime">Loading uptime</span>
-          </article>
-
-          <article class="status-card">
-            <p class="status-label">Crawler</p>
-            <strong id="crawler-state">Starting</strong>
-            <span id="crawler-iteration">Waiting for status</span>
-          </article>
-
-          <article class="status-card">
-            <p class="status-label">Analytics</p>
-            <strong id="analytics-updated">Loading</strong>
-            <span id="current-group">Current group unavailable</span>
-          </article>
-
-          <article class="status-card">
-            <p class="status-label">Last error</p>
-            <strong id="last-error">None</strong>
-            <span id="started-at">Loading</span>
-          </article>
+          <p class="eyebrow" data-i18n="hero.eyebrow">Telegram Medicine Analytics</p>
         </section>
 
         <section class="details-card analytics-card">
           <div class="details-header analytics-header">
             <div>
-              <p class="section-kicker">Counters</p>
-              <h2>Medicine mentions</h2>
-              <p class="section-copy" id="analytics-summary">Loading counters</p>
+              <p class="section-kicker" data-i18n="counters.kicker">Counters</p>
+              <h2 data-i18n="counters.heading">Medicine mentions</h2>
             </div>
 
             <div class="toolbar">
-              <div class="tab-group" role="tablist" aria-label="Medicine counter views">
-                <button class="tab-button is-active" type="button" data-view="tradeName">
+              <div
+                class="tab-group"
+                role="tablist"
+                aria-label="Medicine counter views"
+                data-i18n-attr="aria-label:aria.counterViews"
+              >
+                <button
+                  class="tab-button is-active"
+                  type="button"
+                  data-view="tradeName"
+                  data-i18n="view.tradeName"
+                >
                   By trade name
                 </button>
-                <button class="tab-button" type="button" data-view="name">By name</button>
-                <button class="tab-button" type="button" data-view="medicineId">
-                  By medicine ID
+                <button class="tab-button" type="button" data-view="name" data-i18n="view.name">
+                  By name
                 </button>
               </div>
 
-              <button id="refresh-button" type="button">Refresh</button>
+              <div class="toolbar-search">
+                <input
+                  id="medicine-search"
+                  class="toolbar-search-input"
+                  type="search"
+                  autocomplete="off"
+                  spellcheck="false"
+                  enterkeyhint="search"
+                  placeholder="Search medicine"
+                  aria-label="Search medicine"
+                  data-i18n-attr="placeholder:search.placeholder;aria-label:aria.medicineSearch"
+                />
+              </div>
             </div>
           </div>
-
-          <div id="banner" class="banner" hidden></div>
 
           <div class="table-wrap">
             <table class="counter-table">
               <thead>
                 <tr>
-                  <th scope="col">Medicine</th>
-                  <th scope="col">1d</th>
-                  <th scope="col">3d</th>
-                  <th scope="col">30d</th>
-                  <th scope="col">90d</th>
-                  <th scope="col">Reset</th>
-                  <th scope="col">Undo last</th>
+                  <th scope="col" data-i18n="table.medicine">Medicine</th>
+                  <th scope="col" data-i18n="table.lastReset">Last reset date</th>
+                  <th scope="col" data-i18n="table.1d">1d</th>
+                  <th scope="col" data-i18n="table.3d">3d</th>
+                  <th scope="col" data-i18n="table.30d">30d</th>
+                  <th scope="col" class="actions-col" data-i18n="table.more">More</th>
                 </tr>
               </thead>
               <tbody id="medicine-table-body">
                 <tr class="empty-row">
-                  <td colspan="7">Loading medicine counters.</td>
+                  <td colspan="6" data-i18n="table.loading">Loading medicine counters.</td>
                 </tr>
               </tbody>
             </table>
@@ -96,9 +104,9 @@
           <section class="chart-card" aria-label="Selected medicine trend">
             <div class="chart-header">
               <div>
-                <p class="section-kicker">Trend</p>
-                <h3>90-day daily counts</h3>
-                <p class="section-copy" id="chart-summary">
+                <p class="section-kicker" data-i18n="trend.kicker">Trend</p>
+                <h3 data-i18n="trend.heading">90-day daily counts</h3>
+                <p class="section-copy" id="chart-summary" data-i18n="trend.selectPrompt">
                   Select medicines from the table to compare their daily counts.
                 </p>
               </div>
@@ -110,6 +118,36 @@
 
             <div id="chart-legend" class="chart-legend"></div>
           </section>
+        </section>
+
+        <section
+          class="status-grid"
+          aria-label="Service status overview"
+          data-i18n-attr="aria-label:aria.statusOverview"
+        >
+          <article class="status-card accent">
+            <p class="status-label" data-i18n="status.server">Server</p>
+            <strong id="server-state" data-i18n="status.checking">Checking</strong>
+            <span id="server-uptime" data-i18n="status.loadingUptime">Loading uptime</span>
+          </article>
+
+          <article class="status-card">
+            <p class="status-label" data-i18n="status.crawler">Crawler</p>
+            <strong id="crawler-state" data-i18n="status.starting">Starting</strong>
+            <span id="crawler-iteration" data-i18n="status.waitingForStatus">Waiting for status</span>
+          </article>
+
+          <article class="status-card">
+            <p class="status-label" data-i18n="status.analytics">Analytics</p>
+            <strong id="analytics-updated" data-i18n="status.loading">Loading</strong>
+            <span id="current-group" data-i18n="status.currentGroupUnavailable">Current group unavailable</span>
+          </article>
+
+          <article class="status-card">
+            <p class="status-label" data-i18n="status.lastError">Last error</p>
+            <strong id="last-error" data-i18n="status.none">None</strong>
+            <span id="started-at" data-i18n="status.loading">Loading</span>
+          </article>
         </section>
       </main>
     </div>

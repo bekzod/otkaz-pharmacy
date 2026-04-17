@@ -13,6 +13,7 @@ const NAME_KEY_EXPRESSION = `
 const TRADE_NAME_KEY_EXPRESSION = `
   LOWER(
     COALESCE(
+      NULLIF(BTRIM(parser_result->'attributes'->>'trade_name_text'), ''),
       NULLIF(BTRIM(parser_result->>'trade_name'), ''),
       NULLIF(BTRIM(parser_result->>'name'), ''),
       NULLIF(BTRIM(parser_result->>'normalized_query'), ''),

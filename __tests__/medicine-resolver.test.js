@@ -11,6 +11,19 @@ function createJsonResponse(status, json) {
 }
 
 describe('medicine resolver', () => {
+  test('parser emits a canonical trade name for analytics grouping', () => {
+    expect(parseMedicineQuery('l-тироксин 50 берлин-хеми')).toMatchObject({
+      trade_name: 'l-тироксин',
+      attributes: {
+        trade_name_text: 'l-тироксин 50 берлин-хеми',
+      },
+    });
+
+    expect(parseMedicineQuery('кальций д3 никомед')).toMatchObject({
+      trade_name: 'кальций д3 никомед',
+    });
+  });
+
   test('retries transient failures with exponential backoff and eventually succeeds', async () => {
     const fetchFn = jest
       .fn()

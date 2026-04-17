@@ -696,6 +696,34 @@ function isBrandOnlyProductType(productType) {
   return productType === 'device' || productType === 'other';
 }
 
+function buildCanonicalTradeNameTokens(tokens) {
+  if (!Array.isArray(tokens) || !tokens.length) return [];
+
+  const canonicalTokens = [];
+  for (const token of tokens) {
+    if (!token) continue;
+
+    if (/^\d+(?:\.\d+)?$/u.test(token)) {
+      if (!canonicalTokens.length) {
+        canonicalTokens.push(token);
+        continue;
+      }
+
+      const previousToken = canonicalTokens[canonicalTokens.length - 1];
+      if (/^[a-zа-я]$/iu.test(previousToken)) {
+        canonicalTokens[canonicalTokens.length - 1] = `${previousToken}${token}`;
+        continue;
+      }
+
+      break;
+    }
+
+    canonicalTokens.push(token);
+  }
+
+  return canonicalTokens;
+}
+
 function parseMedicineQuery(rawQuery) {
   const normalizedText = normalizeMedicineQuery(rawQuery);
   const tokens = tokenizeMedicineQuery(rawQuery);
@@ -996,6 +1024,8 @@ function parseMedicineQuery(rawQuery) {
     strengths,
     volumes,
   });
+  const canonicalTradeNameTokens = buildCanonicalTradeNameTokens(tradeNameTokens);
+  const canonicalTradeName = canonicalTradeNameTokens.join(' ').trim() || null;
   const tradeNameText = tradeNameTokens.join(' ').trim() || null;
 
   const annotatedTokens = tokens.map((token, index) => ({
@@ -1017,6 +1047,7 @@ function parseMedicineQuery(rawQuery) {
     return {
       rawQuery: rawQuery || '',
       normalizedText,
+      trade_name: canonicalTradeName || fullTradeName,
       tokens: annotatedTokens,
       residueTokens: tradeNameTokens,
       attributes: {
@@ -1039,6 +1070,7 @@ function parseMedicineQuery(rawQuery) {
   return {
     rawQuery: rawQuery || '',
     normalizedText,
+    trade_name: canonicalTradeName || tradeNameText,
     tokens: annotatedTokens,
     residueTokens: tradeNameTokens,
     attributes: {

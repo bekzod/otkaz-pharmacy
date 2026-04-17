@@ -3,6 +3,7 @@ require('dotenv').config();
 const { telegramClient } = require('./telegram');
 const { createMedicineResolver } = require('./medicine-resolver');
 const { createImageTextExtractor } = require('./image-text-extractor');
+const { normalizeCapturedText } = require('../common/capturedText');
 const logger = require('../common/logger').child({ component: 'telegram-crawler' });
 
 const WAIT_TIME = 5500;
@@ -24,12 +25,6 @@ const OPENAI_IMAGE_TEXT_RETRY_BASE_DELAY_MS = 500;
 
 function wait(ms = 3000) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function normalizeTextLine(value) {
-  if (typeof value !== 'string') return null;
-  const normalized = value.trim();
-  return normalized || null;
 }
 
 function createCrawlerService({
@@ -160,8 +155,27 @@ function createCrawlerService({
 
   function toTelegramEntityId(id) {
     if (id === null || id === undefined) return id;
-    if (typeof id === 'string') return /^-?\d+$/.test(id) ? Number(id) : id;
-    if (typeof id === 'bigint') return Number(id);
+    if (typeof id === 'string') {
+      const trimmed = id.trim();
+      if (!/^-?\d+$/.test(trimmed)) return trimmed;
+
+      const parsed = Number(trimmed);
+      if (!Number.isSafeInteger(parsed)) return trimmed;
+
+      // Active groups are stored as raw Telegram channel IDs; GramJS expects the marked
+      // `-100...` form when resolving channels by numeric identifier.
+      return parsed > 0 ? Number(`-100${trimmed}`) : parsed;
+    }
+
+    if (typeof id === 'bigint') {
+      if (id > 0n) return Number(`-100${id.toString()}`);
+      return Number(id);
+    }
+
+    if (typeof id === 'number' && Number.isSafeInteger(id) && id > 0) {
+      return Number(`-100${id}`);
+    }
+
     return id;
   }
 
@@ -522,9 +536,7 @@ function createCrawlerService({
 
   async function getImageLines(row, imageRecord) {
     if (imageRecord.text_extraction_status === 'completed') {
-      return (imageRecord.text_extracted_lines || [])
-        .map((line) => normalizeTextLine(line))
-        .filter(Boolean);
+      return (imageRecord.text_extracted_lines || []).map((line) => normalizeCapturedText(line)).filter(Boolean);
     }
 
     const result = await activeImageTextExtractor.extractLines({
@@ -545,11 +557,11 @@ function createCrawlerService({
 
     if (result.status !== 'completed') return [];
 
-    return result.lines.map((line) => normalizeTextLine(line)).filter(Boolean);
+    return result.lines.map((line) => normalizeCapturedText(line)).filter(Boolean);
   }
 
   async function processMedicineEntries(messageRecord, row, imageRecords) {
-    const sourceText = normalizeTextLine(row.text);
+    const sourceText = normalizeCapturedText(row.text);
     if (sourceText) {
       await ensureMedicineEntry({
         messageRecord,

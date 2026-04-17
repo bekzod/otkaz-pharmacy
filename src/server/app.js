@@ -6,15 +6,22 @@ function createApp({
   medicineAnalyticsService,
   publicDir = path.resolve(__dirname, '../../public'),
   now = () => new Date(),
+  startedAt = now(),
+  notifyDashboardUpdate,
 } = {}) {
   if (!crawlerService || typeof crawlerService.getCrawlerStatus !== 'function') {
     throw new Error('createApp requires a crawlerService with getCrawlerStatus()');
   }
 
   const app = express();
-  const startedAt = now();
+  const bootedAt = startedAt instanceof Date ? startedAt : now();
 
   app.use(express.json());
+
+  function triggerDashboardUpdate() {
+    if (typeof notifyDashboardUpdate !== 'function') return;
+    Promise.resolve(notifyDashboardUpdate()).catch(() => {});
+  }
 
   function sendError(res, error) {
     const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
@@ -32,8 +39,8 @@ function createApp({
     res.json({
       ok: true,
       server: {
-        startedAt: startedAt.toISOString(),
-        uptimeMs: Date.now() - startedAt.getTime(),
+        startedAt: bootedAt.toISOString(),
+        uptimeMs: Date.now() - bootedAt.getTime(),
       },
       crawler: crawlerService.getCrawlerStatus(),
     });
@@ -85,6 +92,7 @@ function createApp({
           ok: true,
           ...payload,
         });
+        triggerDashboardUpdate();
       } catch (error) {
         sendError(res, error);
       }
@@ -101,6 +109,69 @@ function createApp({
           ok: true,
           ...payload,
         });
+        triggerDashboardUpdate();
+      } catch (error) {
+        sendError(res, error);
+      }
+    });
+
+    app.post('/api/medicine-analytics/ignore', async (req, res) => {
+      try {
+        const payload = await medicineAnalyticsService.ignoreDimensionValue({
+          dimension: req.body?.dimension,
+          key: req.body?.key,
+        });
+
+        res.status(201).json({
+          ok: true,
+          ...payload,
+        });
+        triggerDashboardUpdate();
+      } catch (error) {
+        sendError(res, error);
+      }
+    });
+
+    app.delete('/api/medicine-analytics/ignore', async (req, res) => {
+      try {
+        const payload = await medicineAnalyticsService.restoreIgnoredDimensionValue({
+          dimension: req.body?.dimension,
+          key: req.body?.key,
+        });
+
+        res.json({
+          ok: true,
+          ...payload,
+        });
+        triggerDashboardUpdate();
+      } catch (error) {
+        sendError(res, error);
+      }
+    });
+
+    app.get('/api/ignored-texts', async (_req, res) => {
+      try {
+        const payload = await medicineAnalyticsService.getIgnoredTexts();
+        res.json({
+          ok: true,
+          ...payload,
+        });
+        triggerDashboardUpdate();
+      } catch (error) {
+        sendError(res, error);
+      }
+    });
+
+    app.delete('/api/ignored-texts', async (req, res) => {
+      try {
+        const payload = await medicineAnalyticsService.restoreIgnoredSourceText({
+          sourceText: req.body?.sourceText,
+        });
+
+        res.json({
+          ok: true,
+          ...payload,
+        });
       } catch (error) {
         sendError(res, error);
       }
@@ -111,6 +182,10 @@ function createApp({
 
   app.get('/', (_req, res) => {
     res.sendFile(path.join(publicDir, 'index.html'));
+  });
+
+  app.get('/ignored-texts', (_req, res) => {
+    res.sendFile(path.join(publicDir, 'ignored-texts.html'));
   });
 
   return app;

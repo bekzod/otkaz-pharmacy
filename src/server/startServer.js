@@ -3,6 +3,7 @@ require('dotenv').config();
 const { createApp } = require('./app');
 const models = require('../db/models');
 const { createMedicineAnalyticsService } = require('./medicineAnalyticsService');
+const { createDashboardSocketHub } = require('./dashboardSocketHub');
 
 function listen(app, port, host) {
   return new Promise((resolve, reject) => {
@@ -44,18 +45,28 @@ async function startServer({
   crawlerService,
   medicineAnalyticsService,
 } = {}) {
+  const startedAt = new Date();
   const activeCrawlerService = crawlerService || require('../crawler-telegram/service');
   const activeMedicineAnalyticsService =
     medicineAnalyticsService || createMedicineAnalyticsService({ models });
+  const dashboardSocketHub = createDashboardSocketHub({
+    crawlerService: activeCrawlerService,
+    medicineAnalyticsService: activeMedicineAnalyticsService,
+    startedAt,
+  });
   const app = createApp({
     crawlerService: activeCrawlerService,
     medicineAnalyticsService: activeMedicineAnalyticsService,
+    startedAt,
+    notifyDashboardUpdate: () => dashboardSocketHub.broadcastNow(),
   });
   const server = await listen(app, port, host);
+  dashboardSocketHub.attach(server);
 
   try {
     await activeCrawlerService.startCrawler();
   } catch (error) {
+    await dashboardSocketHub.close();
     await closeServer(server);
     throw error;
   }
@@ -66,6 +77,7 @@ async function startServer({
     if (stopPromise) return stopPromise;
 
     stopPromise = (async () => {
+      await dashboardSocketHub.close();
       await closeServer(server);
       await activeCrawlerService.stopCrawler();
     })();
