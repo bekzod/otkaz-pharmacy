@@ -423,4 +423,79 @@ describe('crawler service', () => {
     });
     expect(models.__store.entries).toHaveLength(0);
   });
+
+  test('persists image documents (PNG sent as file) and extracts text lines', async () => {
+    const models = createMemoryModels();
+    const medicineResolver = {
+      resolve: jest.fn().mockResolvedValue({
+        resolverStatus: 'resolved',
+        medicineId: 'medicine-png',
+        parserResult: { normalized_query: 'синупрет таб' },
+      }),
+    };
+    const imageTextExtractor = {
+      extractLines: jest.fn().mockResolvedValue({
+        status: 'completed',
+        model: 'gpt-5-mini',
+        lines: ['синупрет таб'],
+        errorMessage: null,
+      }),
+    };
+
+    const service = createCrawlerService({
+      models,
+      medicineResolver,
+      imageTextExtractor,
+      time: {
+        now: () => new Date('2026-04-18T10:00:00.000Z'),
+        wait: jest.fn().mockResolvedValue(),
+      },
+    });
+
+    const message = {
+      id: 200,
+      date: 1713348000,
+      message: '',
+      media: {
+        document: {
+          id: 8001,
+          mimeType: 'image/png',
+          attributes: [
+            { className: 'DocumentAttributeImageSize', w: 640, h: 480 },
+            { className: 'DocumentAttributeFilename', fileName: 'meds.png' },
+          ],
+        },
+      },
+    };
+
+    const client = {
+      getMessages: jest.fn().mockResolvedValue([message]),
+      downloadMedia: jest.fn().mockResolvedValue(Buffer.from('png-bytes')),
+    };
+
+    await service.crawlGroup(client, {
+      id: 77,
+      name: 'Test Group',
+      update: jest.fn().mockResolvedValue(),
+    });
+
+    expect(models.__store.images).toHaveLength(1);
+    expect(models.__store.images[0]).toMatchObject({
+      telegram_photo_id: 8001,
+      mime_type: 'image/png',
+      file_name: 'meds.png',
+      width: 640,
+      height: 480,
+      text_extraction_status: 'completed',
+      text_extracted_lines: ['синупрет таб'],
+    });
+    expect(imageTextExtractor.extractLines).toHaveBeenCalledWith(
+      expect.objectContaining({ mimeType: 'image/png' }),
+    );
+    expect(models.__store.entries).toHaveLength(1);
+    expect(models.__store.entries[0]).toMatchObject({
+      source_type: 'image_line',
+      source_text: 'синупрет таб',
+    });
+  });
 });

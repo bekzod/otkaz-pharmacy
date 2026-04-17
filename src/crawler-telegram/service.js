@@ -366,6 +366,7 @@ function createCrawlerService({
     if (media.photo) return 'photo';
     if (media.document) {
       const mime = media.document.mimeType || '';
+      if (mime.startsWith('image/')) return 'photo';
       if (mime.startsWith('video/')) return 'video';
       if (mime.startsWith('audio/')) return 'audio';
       return 'document';
@@ -415,6 +416,11 @@ function createCrawlerService({
     return Boolean(message.media?.photo);
   }
 
+  function hasImageDocument(message) {
+    const mime = message.media?.document?.mimeType || '';
+    return mime.startsWith('image/');
+  }
+
   function getPhotoMeta(message) {
     const photo = message.media?.photo;
     if (!photo) return {};
@@ -434,14 +440,43 @@ function createCrawlerService({
 
     return {
       telegram_photo_id: bigIntToNumber(photo.id),
+      file_name: null,
       width,
       height,
       mime_type: 'image/jpeg',
     };
   }
 
-  async function persistPhotoRecord(c, group, messageRecord, row, message) {
-    const meta = getPhotoMeta(message);
+  function getImageDocumentMeta(message) {
+    const document = message.media?.document;
+    if (!document) return {};
+
+    const attributes = Array.isArray(document.attributes) ? document.attributes : [];
+
+    let width = null;
+    let height = null;
+    let fileName = null;
+
+    for (const attr of attributes) {
+      const className = attr?.className || '';
+      if (className === 'DocumentAttributeImageSize') {
+        if (typeof attr.w === 'number') width = attr.w;
+        if (typeof attr.h === 'number') height = attr.h;
+      } else if (className === 'DocumentAttributeFilename' && typeof attr.fileName === 'string') {
+        fileName = attr.fileName;
+      }
+    }
+
+    return {
+      telegram_photo_id: bigIntToNumber(document.id),
+      file_name: fileName,
+      width,
+      height,
+      mime_type: document.mimeType || 'image/jpeg',
+    };
+  }
+
+  async function persistImageRecord(c, group, messageRecord, row, message, meta, label) {
     const where = { message_id: messageRecord.id };
     if (meta.telegram_photo_id !== null && meta.telegram_photo_id !== undefined) {
       where.telegram_photo_id = meta.telegram_photo_id;
@@ -454,7 +489,7 @@ function createCrawlerService({
       const buffer = await withTimeout(
         c.downloadMedia(message, {}),
         config.TELEGRAM_IMAGE_DOWNLOAD_TIMEOUT_MS,
-        `download photo for message ${row.message_id}`,
+        `download ${label} for message ${row.message_id}`,
       );
 
       if (!Buffer.isBuffer(buffer) || buffer.length === 0) return null;
@@ -463,7 +498,7 @@ function createCrawlerService({
         message_id: messageRecord.id,
         telegram_photo_id: meta.telegram_photo_id,
         mime_type: meta.mime_type,
-        file_name: null,
+        file_name: meta.file_name,
         width: meta.width,
         height: meta.height,
         size_bytes: buffer.length,
@@ -477,7 +512,7 @@ function createCrawlerService({
     } catch (error) {
       logger.warn(
         { groupId: group.id, groupName: group.name, messageId: row.message_id, err: error },
-        'failed to download photo',
+        `failed to download ${label}`,
       );
       return null;
     }
@@ -494,7 +529,14 @@ function createCrawlerService({
     const imageRecords = [];
 
     if (hasPhoto(message)) {
-      const imageRecord = await persistPhotoRecord(c, group, record, row, message);
+      const imageRecord = await persistImageRecord(
+        c, group, record, row, message, getPhotoMeta(message), 'photo',
+      );
+      if (imageRecord) imageRecords.push(imageRecord);
+    } else if (hasImageDocument(message)) {
+      const imageRecord = await persistImageRecord(
+        c, group, record, row, message, getImageDocumentMeta(message), 'image document',
+      );
       if (imageRecord) imageRecords.push(imageRecord);
     }
 
