@@ -66,6 +66,11 @@
       'table.loading': 'Загрузка счётчиков…',
       'table.loadFailed': 'Не удалось загрузить счётчики.',
 
+      'sort.columnLabel': 'Сортировка по «{column}», сейчас: {state}',
+      'sort.state.none': 'не отсортировано',
+      'sort.state.asc': 'по возрастанию',
+      'sort.state.desc': 'по убыванию',
+
       'trend.kicker': 'Динамика',
       'trend.heading': 'Ежедневные значения за 90 дней',
       'trend.selectPrompt':
@@ -158,6 +163,11 @@
       'table.more': 'Яна',
       'table.loading': 'Ҳисоблагичлар юкланмоқда…',
       'table.loadFailed': 'Ҳисоблагичларни юклаб бўлмади.',
+
+      'sort.columnLabel': '«{column}» бўйича сортировка, ҳозир: {state}',
+      'sort.state.none': 'сортировка йўқ',
+      'sort.state.asc': 'ўсиш бўйича',
+      'sort.state.desc': 'камайиш бўйича',
 
       'trend.kicker': 'Динамика',
       'trend.heading': '90 кунлик кунлик қийматлар',
@@ -252,6 +262,11 @@
       'table.more': 'Yana',
       'table.loading': 'Hisoblagichlar yuklanmoqda…',
       'table.loadFailed': 'Hisoblagichlarni yuklab bo‘lmadi.',
+
+      'sort.columnLabel': '«{column}» bo‘yicha sortlash, hozir: {state}',
+      'sort.state.none': 'sortlanmagan',
+      'sort.state.asc': 'o‘sish bo‘yicha',
+      'sort.state.desc': 'kamayish bo‘yicha',
 
       'trend.kicker': 'Dinamika',
       'trend.heading': '90 kunlik kunlik qiymatlar',
