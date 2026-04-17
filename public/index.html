@@ -86,11 +86,36 @@
             <table class="counter-table">
               <thead>
                 <tr>
-                  <th scope="col" data-i18n="table.medicine">Medicine</th>
-                  <th scope="col" data-i18n="table.lastReset">Last reset date</th>
-                  <th scope="col" data-i18n="table.1d">1d</th>
-                  <th scope="col" data-i18n="table.3d">3d</th>
-                  <th scope="col" data-i18n="table.30d">30d</th>
+                  <th scope="col" class="sortable-header" data-sort-column="label" aria-sort="none">
+                    <button type="button" class="column-sort-button" data-sort-column="label">
+                      <span class="column-sort-label" data-i18n="table.medicine">Medicine</span>
+                      <span class="sort-indicator" aria-hidden="true"></span>
+                    </button>
+                  </th>
+                  <th scope="col" class="sortable-header" data-sort-column="lastResetAt" aria-sort="none">
+                    <button type="button" class="column-sort-button" data-sort-column="lastResetAt">
+                      <span class="column-sort-label" data-i18n="table.lastReset">Last reset date</span>
+                      <span class="sort-indicator" aria-hidden="true"></span>
+                    </button>
+                  </th>
+                  <th scope="col" class="sortable-header numeric-header" data-sort-column="count1d" aria-sort="none">
+                    <button type="button" class="column-sort-button" data-sort-column="count1d">
+                      <span class="sort-indicator" aria-hidden="true"></span>
+                      <span class="column-sort-label" data-i18n="table.1d">1d</span>
+                    </button>
+                  </th>
+                  <th scope="col" class="sortable-header numeric-header" data-sort-column="count3d" aria-sort="none">
+                    <button type="button" class="column-sort-button" data-sort-column="count3d">
+                      <span class="sort-indicator" aria-hidden="true"></span>
+                      <span class="column-sort-label" data-i18n="table.3d">3d</span>
+                    </button>
+                  </th>
+                  <th scope="col" class="sortable-header numeric-header" data-sort-column="count30d" aria-sort="none">
+                    <button type="button" class="column-sort-button" data-sort-column="count30d">
+                      <span class="sort-indicator" aria-hidden="true"></span>
+                      <span class="column-sort-label" data-i18n="table.30d">30d</span>
+                    </button>
+                  </th>
                   <th scope="col" class="actions-col" data-i18n="table.more">More</th>
                 </tr>
               </thead>
