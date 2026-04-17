@@ -439,6 +439,61 @@ h1 {
   color: var(--muted);
 }
 
+.counter-table th.sortable-header {
+  padding: 0;
+}
+
+.counter-table th.numeric-header {
+  text-align: right;
+}
+
+.column-sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: inherit;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.numeric-header .column-sort-button {
+  justify-content: flex-end;
+}
+
+.column-sort-button:hover {
+  background: rgba(231, 183, 119, 0.18);
+  color: var(--ink);
+}
+
+.column-sort-button:focus-visible {
+  outline: 2px solid rgba(154, 63, 49, 0.45);
+  outline-offset: -2px;
+}
+
+.sort-indicator {
+  display: inline-block;
+  width: 0.9em;
+  min-height: 1em;
+  font-size: 0.78rem;
+  line-height: 1;
+  color: var(--accent);
+  text-align: center;
+}
+
+.counter-table th.is-sorted .column-sort-label {
+  color: var(--ink);
+  font-weight: 600;
+}
+
 .counter-table td {
   background: rgba(255, 250, 245, 0.48);
 }
