@@ -305,7 +305,7 @@ describe('crawler service', () => {
     const imageTextExtractor = {
       extractLines: jest.fn().mockResolvedValue({
         status: 'completed',
-        model: 'gpt-5.4-mini',
+        model: 'gpt-5-mini',
         lines: ['парацетамол 500 мг', 'ибупрофен 200 мг'],
         errorMessage: null,
       }),
@@ -350,7 +350,7 @@ describe('crawler service', () => {
     expect(models.__store.images).toHaveLength(1);
     expect(models.__store.images[0]).toMatchObject({
       text_extraction_status: 'completed',
-      text_extraction_model: 'gpt-5.4-mini',
+      text_extraction_model: 'gpt-5-mini',
       text_extracted_lines: ['парацетамол 500 мг', 'ибупрофен 200 мг'],
     });
     expect(models.__store.entries).toHaveLength(3);
@@ -372,7 +372,7 @@ describe('crawler service', () => {
     const imageTextExtractor = {
       extractLines: jest.fn().mockResolvedValue({
         status: 'failed',
-        model: 'gpt-5.4-mini',
+        model: 'gpt-5-mini',
         lines: [],
         errorMessage: 'model failed',
       }),
@@ -417,7 +417,7 @@ describe('crawler service', () => {
     expect(models.__store.images).toHaveLength(1);
     expect(models.__store.images[0]).toMatchObject({
       text_extraction_status: 'failed',
-      text_extraction_model: 'gpt-5.4-mini',
+      text_extraction_model: 'gpt-5-mini',
       text_extracted_lines: null,
       text_extraction_error: 'model failed',
     });
@@ -436,7 +436,7 @@ describe('crawler service', () => {
     const imageTextExtractor = {
       extractLines: jest.fn().mockResolvedValue({
         status: 'completed',
-        model: 'gpt-5.4-mini',
+        model: 'gpt-5-mini',
         lines: ['синупрет таб'],
         errorMessage: null,
       }),

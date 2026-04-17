@@ -3,7 +3,7 @@ require('dotenv').config();
 const OpenAI = require('openai');
 const logger = require('../common/logger').child({ component: 'image-text-extractor' });
 
-const DEFAULT_MODEL = 'gpt-5.4-mini';
+const DEFAULT_MODEL = 'gpt-5-mini';
 const DEFAULT_TIMEOUT_MS = 30000;
 const DEFAULT_RETRY_ATTEMPTS = 3;
 const DEFAULT_RETRY_BASE_DELAY_MS = 500;
