@@ -445,6 +445,47 @@ function getSelectedKeys() {
   return state.selectionByView[state.activeView] || [];
 }
 
+function cycleSort(current, nextColumn) {
+  if (!current || current.column !== nextColumn) {
+    return { column: nextColumn, direction: 'desc' };
+  }
+  if (current.direction === 'desc') {
+    return { column: nextColumn, direction: 'asc' };
+  }
+  return { column: null, direction: null };
+}
+
+function syncSortIndicators() {
+  const indicatorGlyph = { asc: '▲', desc: '▼' };
+  document.querySelectorAll('th.sortable-header').forEach((th) => {
+    const column = th.dataset.sortColumn;
+    const isActive = state.sort.column === column;
+    const direction = isActive ? state.sort.direction : null;
+
+    th.classList.toggle('is-sorted', isActive);
+    th.setAttribute(
+      'aria-sort',
+      direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none',
+    );
+
+    const indicator = th.querySelector('.sort-indicator');
+    if (indicator) {
+      indicator.textContent = direction ? indicatorGlyph[direction] : '';
+    }
+
+    const button = th.querySelector('.column-sort-button');
+    if (button) {
+      const labelEl = button.querySelector('.column-sort-label');
+      const columnName = labelEl ? labelEl.textContent : column;
+      const stateKey = direction ? `sort.state.${direction}` : 'sort.state.none';
+      button.setAttribute(
+        'aria-label',
+        t('sort.columnLabel', { column: columnName, state: t(stateKey) }),
+      );
+    }
+  });
+}
+
 function renderStatus(payload) {
   const crawler = payload.crawler || {};
   const server = payload.server || {};
@@ -682,11 +723,13 @@ function renderAnalytics() {
 
   if (!allRows.length) {
     renderLoadingRow(t(config.emptyKey));
+    syncSortIndicators();
     return;
   }
 
   if (!rows.length) {
     renderLoadingRow(t('search.noResults', { query: searchQuery }));
+    syncSortIndicators();
     return;
   }
 
@@ -807,6 +850,8 @@ function renderAnalytics() {
   if (openMenu) {
     updateMenuDirection(openMenu);
   }
+
+  syncSortIndicators();
 }
 
 function areSelectionsEqual(left, right) {
@@ -1086,6 +1131,18 @@ document.addEventListener('click', (event) => {
   if (copyTarget) {
     event.stopPropagation();
     copyLabelText(copyTarget.dataset.copyText);
+    return;
+  }
+
+  const sortButton = event.target.closest('.column-sort-button');
+  if (sortButton) {
+    event.preventDefault();
+    const column = sortButton.dataset.sortColumn;
+    if (column) {
+      state.sort = cycleSort(state.sort, column);
+      state.openMenuKey = null;
+      renderAnalytics();
+    }
     return;
   }
 
