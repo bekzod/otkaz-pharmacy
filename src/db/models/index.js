@@ -6,6 +6,7 @@ const TelegramMedicineEntry = require('./TelegramMedicineEntry');
 const ResetPoint = require('./ResetPoint');
 const IgnoredSourceText = require('./IgnoredSourceText');
 const IgnoredDimensionValue = require('./IgnoredDimensionValue');
+const RowComment = require('./RowComment');
 
 module.exports = {
   sequelize,
@@ -16,4 +17,5 @@ module.exports = {
   ResetPoint,
   IgnoredSourceText,
   IgnoredDimensionValue,
+  RowComment,
 };

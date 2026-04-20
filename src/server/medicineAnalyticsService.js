@@ -1,5 +1,8 @@
-const { QueryTypes } = require('sequelize');
+const { QueryTypes, Op } = require('sequelize');
 const { normalizeCapturedText } = require('../common/capturedText');
+
+const COMMENT_UNDO_MATCH_TOLERANCE_MS = 1000;
+const COMMENT_MAX_LENGTH = 2000;
 
 const DIMENSIONS = Object.freeze({
   name: {
@@ -243,6 +246,7 @@ function buildDimensionQuery(dimension) {
         ELSE MIN(cr.medicine_id)
       END AS medicine_id,
       lr.last_reset_at AS last_reset_at,
+      MIN(rc.comment) AS comment,
       COUNT(re.event_at) FILTER (
         WHERE re.event_at >= GREATEST(
           COALESCE(lr.last_reset_at, 'epoch'::timestamptz),
@@ -270,6 +274,10 @@ function buildDimensionQuery(dimension) {
     FROM candidate_rows cr
     LEFT JOIN latest_resets lr ON lr.reset_key = cr.reset_key
     LEFT JOIN recent_entries re ON re.reset_key = cr.reset_key
+    LEFT JOIN row_comments rc
+      ON rc.dimension = :dimension
+      AND rc.row_key = cr.reset_key
+      AND rc.deleted_at IS NULL
     GROUP BY cr.reset_key, lr.last_reset_at
     ORDER BY count_90d DESC, count_30d DESC, count_3d DESC, count_1d DESC, label ASC
   `;
@@ -434,6 +442,7 @@ function mapDimensionRow(row, activeNow) {
     count90d: Number(row.count_90d || 0),
     lastResetAt: lastResetAt ? lastResetAt.toISOString() : null,
     canUndoLastReset: Boolean(withinUndoWindow),
+    comment: row.comment || null,
   };
 }
 
@@ -465,7 +474,7 @@ function createMedicineAnalyticsService({ models, now = () => new Date() } = {})
     throw new Error('createMedicineAnalyticsService requires models with sequelize');
   }
 
-  const { sequelize, ResetPoint, IgnoredSourceText, IgnoredDimensionValue } = models;
+  const { sequelize, ResetPoint, IgnoredSourceText, IgnoredDimensionValue, RowComment } = models;
 
   if (!ResetPoint) {
     throw new Error('createMedicineAnalyticsService requires ResetPoint');
@@ -477,6 +486,10 @@ function createMedicineAnalyticsService({ models, now = () => new Date() } = {})
 
   if (!IgnoredDimensionValue) {
     throw new Error('createMedicineAnalyticsService requires IgnoredDimensionValue');
+  }
+
+  if (!RowComment) {
+    throw new Error('createMedicineAnalyticsService requires RowComment');
   }
 
   function resolveNow(nowValue) {
@@ -739,6 +752,100 @@ function createMedicineAnalyticsService({ models, now = () => new Date() } = {})
     };
   }
 
+  function normalizeCommentText(value) {
+    if (typeof value !== 'string') {
+      throw createHttpError(400, 'comment is required');
+    }
+
+    const trimmed = value.trim();
+    if (!trimmed) {
+      throw createHttpError(400, 'comment is required');
+    }
+
+    if (trimmed.length > COMMENT_MAX_LENGTH) {
+      throw createHttpError(400, `comment must be at most ${COMMENT_MAX_LENGTH} characters`);
+    }
+
+    return trimmed;
+  }
+
+  async function setRowComment({ dimension, resetKey, comment, nowValue } = {}) {
+    if (!DIMENSIONS[dimension]) {
+      throw createHttpError(400, 'Unsupported analytics dimension');
+    }
+
+    const normalizedKey = normalizeResetKey(dimension, resetKey);
+    const normalizedComment = normalizeCommentText(comment);
+    const activeNow = resolveNow(nowValue);
+
+    const record = await sequelize.transaction(async (transaction) => {
+      const existing = await RowComment.findOne({
+        where: {
+          dimension,
+          row_key: normalizedKey,
+          deleted_at: null,
+        },
+        transaction,
+      });
+
+      if (existing) {
+        existing.comment = normalizedComment;
+        await existing.save({ transaction });
+        return existing;
+      }
+
+      return RowComment.create(
+        {
+          dimension,
+          row_key: normalizedKey,
+          comment: normalizedComment,
+        },
+        { transaction },
+      );
+    });
+
+    return {
+      generatedAt: activeNow.toISOString(),
+      dimension: toPayloadKey(dimension),
+      comment: {
+        id: record.id,
+        dimension: toPayloadKey(dimension),
+        resetKey: normalizedKey,
+        text: record.comment,
+      },
+      row: await getDimensionRow(dimension, normalizedKey, { nowValue: activeNow }),
+    };
+  }
+
+  async function deleteRowComment({ dimension, resetKey, nowValue } = {}) {
+    if (!DIMENSIONS[dimension]) {
+      throw createHttpError(400, 'Unsupported analytics dimension');
+    }
+
+    const normalizedKey = normalizeResetKey(dimension, resetKey);
+    const activeNow = resolveNow(nowValue);
+
+    const existing = await RowComment.findOne({
+      where: {
+        dimension,
+        row_key: normalizedKey,
+        deleted_at: null,
+      },
+    });
+
+    if (!existing) {
+      throw createHttpError(404, 'No comment found for this row');
+    }
+
+    await existing.destroy();
+
+    return {
+      generatedAt: activeNow.toISOString(),
+      dimension: toPayloadKey(dimension),
+      row: await getDimensionRow(dimension, normalizedKey, { nowValue: activeNow }),
+    };
+  }
+
   async function createResetPoint({ dimension, resetKey, nowValue } = {}) {
     if (!DIMENSIONS[dimension]) {
       throw createHttpError(400, 'Unsupported analytics dimension');
@@ -747,10 +854,29 @@ function createMedicineAnalyticsService({ models, now = () => new Date() } = {})
     const normalizedKey = normalizeResetKey(dimension, resetKey);
     const activeNow = resolveNow(nowValue);
 
-    const resetPoint = await ResetPoint.create({
-      dimension,
-      reset_key: normalizedKey,
-      reset_at: activeNow,
+    const resetPoint = await sequelize.transaction(async (transaction) => {
+      const created = await ResetPoint.create(
+        {
+          dimension,
+          reset_key: normalizedKey,
+          reset_at: activeNow,
+        },
+        { transaction },
+      );
+
+      await RowComment.update(
+        { deleted_at: activeNow },
+        {
+          where: {
+            dimension,
+            row_key: normalizedKey,
+            deleted_at: null,
+          },
+          transaction,
+        },
+      );
+
+      return created;
     });
 
     return {
@@ -793,7 +919,38 @@ function createMedicineAnalyticsService({ models, now = () => new Date() } = {})
     }
 
     const deletedResetPoint = serializeResetPoint(resetPoint);
-    await resetPoint.destroy();
+
+    await sequelize.transaction(async (transaction) => {
+      await resetPoint.destroy({ transaction });
+
+      const toleranceStart = new Date(createdAt.getTime() - COMMENT_UNDO_MATCH_TOLERANCE_MS);
+      const toleranceEnd = new Date(createdAt.getTime() + COMMENT_UNDO_MATCH_TOLERANCE_MS);
+
+      const candidate = await RowComment.findOne({
+        where: {
+          dimension,
+          row_key: normalizedKey,
+          deleted_at: { [Op.between]: [toleranceStart, toleranceEnd] },
+        },
+        order: [['deleted_at', 'DESC']],
+        transaction,
+      });
+
+      if (candidate) {
+        const conflicting = await RowComment.findOne({
+          where: {
+            dimension,
+            row_key: normalizedKey,
+            deleted_at: null,
+          },
+          transaction,
+        });
+        if (!conflicting) {
+          candidate.deleted_at = null;
+          await candidate.save({ transaction });
+        }
+      }
+    });
 
     return {
       generatedAt: activeNow.toISOString(),
@@ -813,6 +970,8 @@ function createMedicineAnalyticsService({ models, now = () => new Date() } = {})
     restoreIgnoredDimensionValue,
     createResetPoint,
     undoLatestResetPoint,
+    setRowComment,
+    deleteRowComment,
   };
 }
 

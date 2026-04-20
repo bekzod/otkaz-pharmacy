@@ -115,6 +115,41 @@ function createApp({
       }
     });
 
+    app.post('/api/medicine-analytics/comments', async (req, res) => {
+      try {
+        const payload = await medicineAnalyticsService.setRowComment({
+          dimension: req.body?.dimension,
+          resetKey: req.body?.resetKey,
+          comment: req.body?.comment,
+        });
+
+        res.status(201).json({
+          ok: true,
+          ...payload,
+        });
+        triggerDashboardUpdate();
+      } catch (error) {
+        sendError(res, error);
+      }
+    });
+
+    app.delete('/api/medicine-analytics/comments', async (req, res) => {
+      try {
+        const payload = await medicineAnalyticsService.deleteRowComment({
+          dimension: req.body?.dimension,
+          resetKey: req.body?.resetKey,
+        });
+
+        res.json({
+          ok: true,
+          ...payload,
+        });
+        triggerDashboardUpdate();
+      } catch (error) {
+        sendError(res, error);
+      }
+    });
+
     app.post('/api/medicine-analytics/ignore', async (req, res) => {
       try {
         const payload = await medicineAnalyticsService.ignoreDimensionValue({

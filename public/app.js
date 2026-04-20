@@ -760,6 +760,13 @@ function renderAnalytics() {
       labelCell.appendChild(medicineId);
     }
 
+    if (row.comment) {
+      const commentLine = document.createElement('div');
+      commentLine.className = 'cell-meta cell-comment';
+      commentLine.textContent = row.comment;
+      labelCell.appendChild(commentLine);
+    }
+
     tr.appendChild(labelCell);
 
     const lastResetCell = document.createElement('td');
@@ -798,6 +805,20 @@ function renderAnalytics() {
 
     const menuPanel = document.createElement('div');
     menuPanel.className = 'row-menu-panel';
+
+    const commentButton = document.createElement('button');
+    commentButton.type = 'button';
+    commentButton.className = 'row-menu-item';
+    commentButton.dataset.action = 'comment';
+    commentButton.dataset.dimension = config.dimension;
+    commentButton.dataset.key = row.key;
+    commentButton.dataset.label = row.label || row.key;
+    commentButton.dataset.currentComment = row.comment || '';
+    commentButton.disabled = state.busy;
+    commentButton.textContent = row.comment
+      ? t('row.editCommentButton')
+      : t('row.addCommentButton');
+    menuPanel.appendChild(commentButton);
 
     const resetButton = document.createElement('button');
     resetButton.type = 'button';
@@ -1064,6 +1085,46 @@ async function mutateResetPoint(action, dimension, resetKey, label) {
   }
 }
 
+async function editRowComment(dimension, resetKey, label, currentComment) {
+  const input = window.prompt(
+    t('row.commentPrompt', { label }),
+    currentComment || '',
+  );
+  if (input === null) return;
+
+  const trimmed = input.trim();
+  const isDelete = trimmed === '';
+
+  if (isDelete && !currentComment) {
+    return;
+  }
+
+  setBusy(true);
+
+  try {
+    if (isDelete) {
+      await requestJson('/api/medicine-analytics/comments', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dimension, resetKey }),
+      });
+      setBanner(t('row.commentRemoved', { label }), 'success');
+    } else {
+      await requestJson('/api/medicine-analytics/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dimension, resetKey, comment: trimmed }),
+      });
+      setBanner(t('row.commentSaved', { label }), 'success');
+    }
+    await refreshDashboard({ keepBanner: true });
+  } catch (error) {
+    setBanner(error.message, 'error');
+  } finally {
+    setBusy(false);
+  }
+}
+
 async function ignoreDimensionValue(dimension, key, label) {
   if (!window.confirm(t('row.ignoreConfirm', { label }))) return;
 
@@ -1158,6 +1219,13 @@ document.addEventListener('click', (event) => {
         actionButton.dataset.dimension,
         actionButton.dataset.key,
         actionButton.dataset.label,
+      );
+    } else if (action === 'comment') {
+      editRowComment(
+        actionButton.dataset.dimension,
+        actionButton.dataset.key,
+        actionButton.dataset.label,
+        actionButton.dataset.currentComment || '',
       );
     } else {
       mutateResetPoint(

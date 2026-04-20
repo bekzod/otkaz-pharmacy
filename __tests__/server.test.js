@@ -131,6 +131,22 @@ describe('server entry point', () => {
         restoredDimensionValue: { dimension: 'tradeName', key: 'aspirin' },
         rows: [],
       }),
+      setRowComment: jest.fn().mockResolvedValue({
+        generatedAt: '2026-04-17T10:06:00.000Z',
+        dimension: 'tradeName',
+        comment: {
+          id: 'rc-1',
+          dimension: 'tradeName',
+          resetKey: 'aspirin',
+          text: 'follow up',
+        },
+        row: { key: 'aspirin', comment: 'follow up' },
+      }),
+      deleteRowComment: jest.fn().mockResolvedValue({
+        generatedAt: '2026-04-17T10:06:00.000Z',
+        dimension: 'tradeName',
+        row: { key: 'aspirin', comment: null },
+      }),
     };
 
     const app = createApp({
@@ -167,6 +183,20 @@ describe('server entry point', () => {
         method: 'DELETE',
         body: { sourceText: 'service message' },
       });
+      const setCommentResponse = await requestJson(
+        `${baseUrl}/api/medicine-analytics/comments`,
+        {
+          method: 'POST',
+          body: { dimension: 'trade_name', resetKey: 'aspirin', comment: 'follow up' },
+        },
+      );
+      const deleteCommentResponse = await requestJson(
+        `${baseUrl}/api/medicine-analytics/comments`,
+        {
+          method: 'DELETE',
+          body: { dimension: 'trade_name', resetKey: 'aspirin' },
+        },
+      );
       const pageResponse = await requestText(`${baseUrl}/`);
       const ignoredPageResponse = await requestText(`${baseUrl}/ignored-texts`);
 
@@ -188,6 +218,27 @@ describe('server entry point', () => {
       expect(restoreDimensionResponse.status).toBe(200);
       expect(ignoredTextsResponse.status).toBe(200);
       expect(restoreTextResponse.status).toBe(200);
+
+      expect(setCommentResponse.status).toBe(201);
+      expect(setCommentResponse.json).toMatchObject({
+        ok: true,
+        comment: { resetKey: 'aspirin', text: 'follow up' },
+        row: { key: 'aspirin', comment: 'follow up' },
+      });
+      expect(deleteCommentResponse.status).toBe(200);
+      expect(deleteCommentResponse.json).toMatchObject({
+        ok: true,
+        row: { key: 'aspirin', comment: null },
+      });
+      expect(medicineAnalyticsService.setRowComment).toHaveBeenCalledWith({
+        dimension: 'trade_name',
+        resetKey: 'aspirin',
+        comment: 'follow up',
+      });
+      expect(medicineAnalyticsService.deleteRowComment).toHaveBeenCalledWith({
+        dimension: 'trade_name',
+        resetKey: 'aspirin',
+      });
 
       expect(pageResponse.status).toBe(200);
       expect(pageResponse.text).toContain('Ignored Texts');
