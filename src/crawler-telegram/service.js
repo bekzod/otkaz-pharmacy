@@ -8,7 +8,7 @@ const logger = require('../common/logger').child({ component: 'telegram-crawler'
 
 const WAIT_TIME = 5500;
 const MESSAGE_PAGE_LIMIT = 90;
-const INITIAL_CHANNEL_MESSAGE_PAGE_LIMIT = 500;
+const INITIAL_CHANNEL_MESSAGE_PAGE_LIMIT = 700;
 const TELEGRAM_GET_MESSAGES_WAIT_MS = 1000;
 const TELEGRAM_OPERATION_RETRY_ATTEMPTS = 3;
 const TELEGRAM_OPERATION_TIMEOUT_MS = 30000;
