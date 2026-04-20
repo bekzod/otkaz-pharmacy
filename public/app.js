@@ -196,6 +196,7 @@ const state = {
   socketReconnectTimer: null,
   openMenuKey: null,
   searchQuery: '',
+  resolvedFilter: 'all',
   sort: { column: null, direction: null },
   selectionByView: {
     tradeName: [],
@@ -422,6 +423,12 @@ function filterRowsBySearch(rows, rawQuery) {
       rowVariants.some((variant) => tokens.every((token) => variant.includes(token))),
     );
   });
+}
+
+function filterRowsByResolved(rows, filter) {
+  if (filter === 'resolved') return rows.filter((row) => Boolean(row.isResolved));
+  if (filter === 'unresolved') return rows.filter((row) => !row.isResolved);
+  return rows;
 }
 
 function getRowsForActiveView() {
@@ -710,7 +717,8 @@ function renderAnalytics() {
   const config = VIEW_CONFIG[state.activeView];
   const allRows = getRowsForActiveView();
   const searchQuery = state.searchQuery.trim();
-  const filteredRows = filterRowsBySearch(allRows, searchQuery);
+  const searchedRows = filterRowsBySearch(allRows, searchQuery);
+  const filteredRows = filterRowsByResolved(searchedRows, state.resolvedFilter);
   const rows = window.sortRows(filteredRows, state.sort);
   const selectedKeys = new Set(getSelectedKeys());
   const previousRows = new Map(
@@ -742,6 +750,7 @@ function renderAnalytics() {
     tr.dataset.rowKey = row.key;
     tr.className = 'data-row';
     tr.classList.toggle('is-selected', selectedKeys.has(row.key));
+    tr.classList.toggle('is-resolved', Boolean(row.isResolved));
 
     const labelCell = document.createElement('td');
     labelCell.className = 'label-cell';
@@ -752,6 +761,16 @@ function renderAnalytics() {
     label.dataset.copyText = row.label || row.key;
     label.title = t('copy.hint');
     labelCell.appendChild(label);
+
+    if (row.isResolved) {
+      const badge = document.createElement('span');
+      badge.className = 'row-badge row-badge--resolved';
+      badge.textContent = t('row.resolved');
+      if (row.resolvedAt) {
+        badge.title = t('row.resolvedAt', { date: formatDate(row.resolvedAt) });
+      }
+      labelCell.appendChild(badge);
+    }
 
     if (row.medicineId && row.medicineId !== row.label) {
       const medicineId = document.createElement('div');
@@ -844,6 +863,19 @@ function renderAnalytics() {
       menuPanel.appendChild(undoButton);
     }
 
+    const resolveButton = document.createElement('button');
+    resolveButton.type = 'button';
+    resolveButton.className = 'row-menu-item';
+    resolveButton.dataset.action = row.isResolved ? 'unresolve' : 'resolve';
+    resolveButton.dataset.dimension = config.dimension;
+    resolveButton.dataset.key = row.key;
+    resolveButton.dataset.label = row.label || row.key;
+    resolveButton.disabled = state.busy;
+    resolveButton.textContent = row.isResolved
+      ? t('row.unresolveButton')
+      : t('row.resolveButton');
+    menuPanel.appendChild(resolveButton);
+
     const ignoreButton = document.createElement('button');
     ignoreButton.type = 'button';
     ignoreButton.className = 'row-menu-item is-danger';
@@ -896,7 +928,8 @@ function didRowsChange(previousRows = [], nextRows = []) {
       previousRow.count3d !== row.count3d ||
       previousRow.count30d !== row.count30d ||
       previousRow.count90d !== row.count90d ||
-      previousRow.canUndoLastReset !== row.canUndoLastReset
+      previousRow.canUndoLastReset !== row.canUndoLastReset ||
+      previousRow.isResolved !== row.isResolved
     );
   });
 }
@@ -1085,6 +1118,37 @@ async function mutateResetPoint(action, dimension, resetKey, label) {
   }
 }
 
+async function mutateResolution(action, dimension, resetKey, label) {
+  const method = action === 'resolve' ? 'POST' : 'DELETE';
+
+  setBusy(true);
+
+  try {
+    await requestJson('/api/medicine-analytics/resolutions', {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        dimension,
+        resetKey,
+      }),
+    });
+
+    setBanner(
+      action === 'resolve'
+        ? t('row.resolvedToast', { label })
+        : t('row.unresolvedToast', { label }),
+      'success',
+    );
+    await refreshDashboard({ keepBanner: true });
+  } catch (error) {
+    setBanner(error.message, 'error');
+  } finally {
+    setBusy(false);
+  }
+}
+
 async function editRowComment(dimension, resetKey, label, currentComment) {
   const input = window.prompt(
     t('row.commentPrompt', { label }),
@@ -1227,6 +1291,13 @@ document.addEventListener('click', (event) => {
         actionButton.dataset.label,
         actionButton.dataset.currentComment || '',
       );
+    } else if (action === 'resolve' || action === 'unresolve') {
+      mutateResolution(
+        action,
+        actionButton.dataset.dimension,
+        actionButton.dataset.key,
+        actionButton.dataset.label,
+      );
     } else {
       mutateResetPoint(
         action,
@@ -1234,6 +1305,25 @@ document.addEventListener('click', (event) => {
         actionButton.dataset.key,
         actionButton.dataset.label,
       );
+    }
+    return;
+  }
+
+  const resolvedFilterButton = event.target.closest('[data-resolved-filter]');
+  if (resolvedFilterButton) {
+    const nextFilter = resolvedFilterButton.dataset.resolvedFilter;
+    if (nextFilter && nextFilter !== state.resolvedFilter) {
+      state.resolvedFilter = nextFilter;
+      document
+        .querySelectorAll('[data-resolved-filter]')
+        .forEach((button) => {
+          button.classList.toggle(
+            'is-active',
+            button.dataset.resolvedFilter === nextFilter,
+          );
+        });
+      state.openMenuKey = null;
+      renderAnalytics();
     }
     return;
   }
