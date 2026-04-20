@@ -536,6 +536,7 @@ h1 {
 .count-cell {
   font-size: 1.05rem;
   font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 .reset-date-cell {
