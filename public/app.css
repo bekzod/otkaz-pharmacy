@@ -444,7 +444,7 @@ h1 {
 }
 
 .counter-table th.numeric-header {
-  text-align: right;
+  text-align: left;
 }
 
 .column-sort-button {
@@ -466,7 +466,7 @@ h1 {
 }
 
 .numeric-header .column-sort-button {
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .column-sort-button:hover {
