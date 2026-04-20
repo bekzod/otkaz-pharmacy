@@ -231,24 +231,47 @@ function renderLoadingRow(message) {
 function updateMenuDirection(menu) {
   if (!menu) return;
 
-  menu.classList.remove('opens-upward');
-
-  if (!menu.open) return;
-
   const panel = menu.querySelector('.row-menu-panel');
-  const tableWrap = menu.closest('.table-wrap');
-  if (!panel || !tableWrap) return;
+  if (!panel) return;
 
-  const menuRect = menu.getBoundingClientRect();
-  const wrapRect = tableWrap.getBoundingClientRect();
-  const panelHeight = panel.offsetHeight || panel.scrollHeight || 0;
-  const spaceBelow = wrapRect.bottom - menuRect.bottom;
-  const spaceAbove = menuRect.top - wrapRect.top;
-
-  if (panelHeight + 12 > spaceBelow && spaceAbove > spaceBelow) {
-    menu.classList.add('opens-upward');
+  if (!menu.open) {
+    panel.style.top = '';
+    panel.style.left = '';
+    return;
   }
+
+  const summary = menu.querySelector('summary');
+  if (!summary) return;
+
+  const summaryRect = summary.getBoundingClientRect();
+  const panelHeight = panel.offsetHeight || panel.scrollHeight || 0;
+  const panelWidth = panel.offsetWidth || panel.scrollWidth || 0;
+  const viewportHeight = window.innerHeight;
+  const viewportWidth = window.innerWidth;
+
+  const spaceBelow = viewportHeight - summaryRect.bottom;
+  const opensUpward = panelHeight + 12 > spaceBelow && summaryRect.top > panelHeight + 12;
+
+  const left = Math.max(8, Math.min(summaryRect.right - panelWidth, viewportWidth - panelWidth - 8));
+  const top = opensUpward
+    ? Math.max(8, summaryRect.top - panelHeight - 6)
+    : summaryRect.bottom + 6;
+
+  panel.style.left = `${left}px`;
+  panel.style.top = `${top}px`;
 }
+
+let menuRepositionScheduled = false;
+function scheduleMenuReposition() {
+  if (menuRepositionScheduled) return;
+  menuRepositionScheduled = true;
+  window.requestAnimationFrame(() => {
+    menuRepositionScheduled = false;
+    document.querySelectorAll('.row-menu[open]').forEach(updateMenuDirection);
+  });
+}
+window.addEventListener('scroll', scheduleMenuReposition, { passive: true, capture: true });
+window.addEventListener('resize', scheduleMenuReposition, { passive: true });
 
 function normalizeSearchValue(value) {
   return String(value || '')
@@ -765,7 +788,12 @@ function renderAnalytics() {
     if (row.isResolved) {
       const badge = document.createElement('span');
       badge.className = 'row-badge row-badge--resolved';
-      badge.textContent = t('row.resolved');
+      const check = document.createElement('span');
+      check.className = 'row-badge-check';
+      check.setAttribute('aria-hidden', 'true');
+      check.textContent = '✅';
+      badge.appendChild(check);
+      badge.appendChild(document.createTextNode(t('row.resolved')));
       if (row.resolvedAt) {
         badge.title = t('row.resolvedAt', { date: formatDate(row.resolvedAt) });
       }
