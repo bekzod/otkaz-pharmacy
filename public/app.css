@@ -511,6 +511,36 @@ h1 {
   background: rgba(231, 183, 119, 0.2);
 }
 
+.data-row.is-resolved td {
+  opacity: 0.68;
+}
+
+.data-row.is-resolved td.label-cell {
+  opacity: 1;
+}
+
+.data-row.is-resolved .copyable-label {
+  text-decoration: line-through;
+  text-decoration-color: rgba(32, 24, 18, 0.35);
+}
+
+.row-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.row-badge--resolved {
+  background: rgba(30, 125, 76, 0.14);
+  color: #1e7d4c;
+}
+
 .label-cell strong {
   display: block;
   font-size: 0.98rem;

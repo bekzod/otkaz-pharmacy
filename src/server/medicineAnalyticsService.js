@@ -208,6 +208,15 @@ function buildDimensionQuery(dimension) {
       WHERE rp.dimension = :dimension
       ORDER BY rp.reset_key, rp.reset_at DESC, rp.created_at DESC, rp.id DESC
     ),
+    latest_resolutions AS (
+      SELECT DISTINCT ON (rr.row_key)
+        rr.row_key,
+        rr.resolved_at
+      FROM row_resolutions rr
+      WHERE rr.dimension = :dimension
+        AND rr.deleted_at IS NULL
+      ORDER BY rr.row_key, rr.resolved_at DESC
+    ),
     entry_rows AS (
       SELECT
         re.reset_key,
@@ -246,6 +255,15 @@ function buildDimensionQuery(dimension) {
         ELSE MIN(cr.medicine_id)
       END AS medicine_id,
       lr.last_reset_at AS last_reset_at,
+      lres.resolved_at AS resolved_at,
+      (
+        lres.resolved_at IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM recent_entries re2
+          WHERE re2.reset_key = cr.reset_key
+            AND re2.event_at > lres.resolved_at
+        )
+      ) AS is_resolved,
       MIN(rc.comment) AS comment,
       COUNT(re.event_at) FILTER (
         WHERE re.event_at >= GREATEST(
@@ -273,12 +291,13 @@ function buildDimensionQuery(dimension) {
       )::int AS count_90d
     FROM candidate_rows cr
     LEFT JOIN latest_resets lr ON lr.reset_key = cr.reset_key
+    LEFT JOIN latest_resolutions lres ON lres.row_key = cr.reset_key
     LEFT JOIN recent_entries re ON re.reset_key = cr.reset_key
     LEFT JOIN row_comments rc
       ON rc.dimension = :dimension
       AND rc.row_key = cr.reset_key
       AND rc.deleted_at IS NULL
-    GROUP BY cr.reset_key, lr.last_reset_at
+    GROUP BY cr.reset_key, lr.last_reset_at, lres.resolved_at
     ORDER BY count_90d DESC, count_30d DESC, count_3d DESC, count_1d DESC, label ASC
   `;
 }
@@ -431,6 +450,7 @@ function mapDimensionRow(row, activeNow) {
     lastResetAt && activeNow
       ? activeNow.getTime() - lastResetAt.getTime() <= UNDO_WINDOW_MS
       : Boolean(lastResetAt);
+  const resolvedAt = row.resolved_at ? new Date(row.resolved_at) : null;
 
   return {
     key: row.key,
@@ -443,6 +463,8 @@ function mapDimensionRow(row, activeNow) {
     lastResetAt: lastResetAt ? lastResetAt.toISOString() : null,
     canUndoLastReset: Boolean(withinUndoWindow),
     comment: row.comment || null,
+    isResolved: Boolean(row.is_resolved),
+    resolvedAt: resolvedAt ? resolvedAt.toISOString() : null,
   };
 }
 
@@ -474,7 +496,14 @@ function createMedicineAnalyticsService({ models, now = () => new Date() } = {})
     throw new Error('createMedicineAnalyticsService requires models with sequelize');
   }
 
-  const { sequelize, ResetPoint, IgnoredSourceText, IgnoredDimensionValue, RowComment } = models;
+  const {
+    sequelize,
+    ResetPoint,
+    IgnoredSourceText,
+    IgnoredDimensionValue,
+    RowComment,
+    RowResolution,
+  } = models;
 
   if (!ResetPoint) {
     throw new Error('createMedicineAnalyticsService requires ResetPoint');
@@ -490,6 +519,10 @@ function createMedicineAnalyticsService({ models, now = () => new Date() } = {})
 
   if (!RowComment) {
     throw new Error('createMedicineAnalyticsService requires RowComment');
+  }
+
+  if (!RowResolution) {
+    throw new Error('createMedicineAnalyticsService requires RowResolution');
   }
 
   function resolveNow(nowValue) {
@@ -846,6 +879,85 @@ function createMedicineAnalyticsService({ models, now = () => new Date() } = {})
     };
   }
 
+  async function resolveRow({ dimension, resetKey, nowValue } = {}) {
+    if (!DIMENSIONS[dimension]) {
+      throw createHttpError(400, 'Unsupported analytics dimension');
+    }
+
+    const normalizedKey = normalizeResetKey(dimension, resetKey);
+    const activeNow = resolveNow(nowValue);
+
+    const record = await sequelize.transaction(async (transaction) => {
+      const existing = await RowResolution.findOne({
+        where: {
+          dimension,
+          row_key: normalizedKey,
+          deleted_at: null,
+        },
+        transaction,
+      });
+
+      if (existing) {
+        existing.resolved_at = activeNow;
+        await existing.save({ transaction });
+        return existing;
+      }
+
+      return RowResolution.create(
+        {
+          dimension,
+          row_key: normalizedKey,
+          resolved_at: activeNow,
+        },
+        { transaction },
+      );
+    });
+
+    return {
+      generatedAt: activeNow.toISOString(),
+      dimension: toPayloadKey(dimension),
+      resolution: {
+        id: record.id,
+        dimension: toPayloadKey(dimension),
+        resetKey: normalizedKey,
+        resolvedAt:
+          record.resolved_at instanceof Date
+            ? record.resolved_at.toISOString()
+            : record.resolved_at,
+      },
+      row: await getDimensionRow(dimension, normalizedKey, { nowValue: activeNow }),
+    };
+  }
+
+  async function unresolveRow({ dimension, resetKey, nowValue } = {}) {
+    if (!DIMENSIONS[dimension]) {
+      throw createHttpError(400, 'Unsupported analytics dimension');
+    }
+
+    const normalizedKey = normalizeResetKey(dimension, resetKey);
+    const activeNow = resolveNow(nowValue);
+
+    const existing = await RowResolution.findOne({
+      where: {
+        dimension,
+        row_key: normalizedKey,
+        deleted_at: null,
+      },
+    });
+
+    if (!existing) {
+      throw createHttpError(404, 'No resolution found for this row');
+    }
+
+    await existing.destroy();
+
+    return {
+      generatedAt: activeNow.toISOString(),
+      dimension: toPayloadKey(dimension),
+      row: await getDimensionRow(dimension, normalizedKey, { nowValue: activeNow }),
+    };
+  }
+
   async function createResetPoint({ dimension, resetKey, nowValue } = {}) {
     if (!DIMENSIONS[dimension]) {
       throw createHttpError(400, 'Unsupported analytics dimension');
@@ -972,6 +1084,8 @@ function createMedicineAnalyticsService({ models, now = () => new Date() } = {})
     undoLatestResetPoint,
     setRowComment,
     deleteRowComment,
+    resolveRow,
+    unresolveRow,
   };
 }
 

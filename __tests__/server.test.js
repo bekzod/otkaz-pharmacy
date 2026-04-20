@@ -147,6 +147,22 @@ describe('server entry point', () => {
         dimension: 'tradeName',
         row: { key: 'aspirin', comment: null },
       }),
+      resolveRow: jest.fn().mockResolvedValue({
+        generatedAt: '2026-04-17T10:06:00.000Z',
+        dimension: 'tradeName',
+        resolution: {
+          id: 'rr-1',
+          dimension: 'tradeName',
+          resetKey: 'aspirin',
+          resolvedAt: '2026-04-17T10:06:00.000Z',
+        },
+        row: { key: 'aspirin', isResolved: true },
+      }),
+      unresolveRow: jest.fn().mockResolvedValue({
+        generatedAt: '2026-04-17T10:06:00.000Z',
+        dimension: 'tradeName',
+        row: { key: 'aspirin', isResolved: false },
+      }),
     };
 
     const app = createApp({
@@ -197,6 +213,20 @@ describe('server entry point', () => {
           body: { dimension: 'trade_name', resetKey: 'aspirin' },
         },
       );
+      const resolveResponse = await requestJson(
+        `${baseUrl}/api/medicine-analytics/resolutions`,
+        {
+          method: 'POST',
+          body: { dimension: 'trade_name', resetKey: 'aspirin' },
+        },
+      );
+      const unresolveResponse = await requestJson(
+        `${baseUrl}/api/medicine-analytics/resolutions`,
+        {
+          method: 'DELETE',
+          body: { dimension: 'trade_name', resetKey: 'aspirin' },
+        },
+      );
       const pageResponse = await requestText(`${baseUrl}/`);
       const ignoredPageResponse = await requestText(`${baseUrl}/ignored-texts`);
 
@@ -236,6 +266,26 @@ describe('server entry point', () => {
         comment: 'follow up',
       });
       expect(medicineAnalyticsService.deleteRowComment).toHaveBeenCalledWith({
+        dimension: 'trade_name',
+        resetKey: 'aspirin',
+      });
+
+      expect(resolveResponse.status).toBe(201);
+      expect(resolveResponse.json).toMatchObject({
+        ok: true,
+        resolution: { resetKey: 'aspirin' },
+        row: { key: 'aspirin', isResolved: true },
+      });
+      expect(unresolveResponse.status).toBe(200);
+      expect(unresolveResponse.json).toMatchObject({
+        ok: true,
+        row: { key: 'aspirin', isResolved: false },
+      });
+      expect(medicineAnalyticsService.resolveRow).toHaveBeenCalledWith({
+        dimension: 'trade_name',
+        resetKey: 'aspirin',
+      });
+      expect(medicineAnalyticsService.unresolveRow).toHaveBeenCalledWith({
         dimension: 'trade_name',
         resetKey: 'aspirin',
       });

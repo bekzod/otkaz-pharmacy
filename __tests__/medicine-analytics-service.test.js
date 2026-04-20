@@ -68,6 +68,48 @@ function createRowCommentModel() {
   };
 }
 
+function createRowResolutionModel() {
+  const records = [];
+  let nextId = 1;
+
+  function attachInstanceMethods(record) {
+    record.save = async () => record;
+    record.destroy = async () => {
+      record.deleted_at = new Date();
+    };
+    return record;
+  }
+
+  return {
+    _records: records,
+
+    async findOne({ where }) {
+      const candidates = records.filter(
+        (record) =>
+          record.dimension === where.dimension && record.row_key === where.row_key,
+      );
+
+      if (where.deleted_at === null) {
+        return candidates.find((record) => record.deleted_at === null) || null;
+      }
+
+      return null;
+    },
+
+    async create(values) {
+      const record = attachInstanceMethods({
+        id: `rr-${nextId++}`,
+        dimension: values.dimension,
+        row_key: values.row_key,
+        resolved_at: values.resolved_at,
+        deleted_at: null,
+      });
+      records.push(record);
+      return record;
+    },
+  };
+}
+
 function createResetPointModel() {
   const records = [];
   let nextId = 1;
@@ -195,6 +237,7 @@ function buildModels(overrides = {}) {
     IgnoredSourceText: createIgnoredSourceTextModel(),
     IgnoredDimensionValue: createIgnoredDimensionValueModel(),
     RowComment: createRowCommentModel(),
+    RowResolution: createRowResolutionModel(),
     ...overrides,
   };
 }
@@ -443,6 +486,106 @@ describe('medicine analytics service', () => {
 
     expect(models.RowComment._records).toHaveLength(1);
     expect(models.RowComment._records[0].deleted_at).toEqual(firstNow);
+  });
+
+  test('left-joins row_resolutions in the analytics query with auto-unresolve logic', async () => {
+    const models = buildModels();
+    const service = createMedicineAnalyticsService({
+      models,
+      now: () => new Date('2026-04-18T12:00:00.000Z'),
+    });
+
+    await service.getAnalytics();
+
+    const executedQueries = models.sequelize.query.mock.calls.map(([query]) => query);
+    executedQueries.forEach((query) => {
+      expect(query).toContain('row_resolutions');
+      expect(query).toContain('latest_resolutions');
+      expect(query).toContain('rr.deleted_at IS NULL');
+      expect(query).toMatch(/re2\.event_at > lres\.resolved_at/);
+    });
+  });
+
+  test('resolveRow inserts a row_resolutions record and refreshes resolved_at on second call', async () => {
+    const models = buildModels();
+    const firstNow = new Date('2026-04-18T12:00:00.000Z');
+    const service = createMedicineAnalyticsService({
+      models,
+      now: () => firstNow,
+    });
+
+    await service.resolveRow({
+      dimension: 'trade_name',
+      resetKey: 'Aspirin',
+    });
+
+    expect(models.RowResolution._records).toHaveLength(1);
+    expect(models.RowResolution._records[0]).toMatchObject({
+      dimension: 'trade_name',
+      row_key: 'aspirin',
+      deleted_at: null,
+    });
+    expect(models.RowResolution._records[0].resolved_at).toEqual(firstNow);
+
+    const secondNow = new Date('2026-04-18T13:00:00.000Z');
+    await service.resolveRow({
+      dimension: 'trade_name',
+      resetKey: 'aspirin',
+      nowValue: secondNow,
+    });
+
+    expect(models.RowResolution._records).toHaveLength(1);
+    expect(models.RowResolution._records[0].resolved_at).toEqual(secondNow);
+  });
+
+  test('unresolveRow soft-deletes the active resolution and 404s when missing', async () => {
+    const models = buildModels();
+    const service = createMedicineAnalyticsService({
+      models,
+      now: () => new Date('2026-04-18T12:00:00.000Z'),
+    });
+
+    await service.resolveRow({ dimension: 'name', resetKey: 'paracetamol' });
+    expect(models.RowResolution._records[0].deleted_at).toBeNull();
+
+    await service.unresolveRow({ dimension: 'name', resetKey: 'paracetamol' });
+    expect(models.RowResolution._records[0].deleted_at).toBeInstanceOf(Date);
+
+    await expect(
+      service.unresolveRow({ dimension: 'name', resetKey: 'paracetamol' }),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  test('getAnalytics surfaces isResolved and resolvedAt from the query row', async () => {
+    const models = buildModels();
+    const resolvedAt = new Date('2026-04-18T11:00:00.000Z');
+    models.sequelize.query = jest.fn().mockResolvedValue([
+      {
+        key: 'aspirin',
+        label: 'Aspirin',
+        medicine_id: null,
+        last_reset_at: null,
+        resolved_at: resolvedAt,
+        is_resolved: true,
+        comment: null,
+        count_1d: 0,
+        count_3d: 0,
+        count_30d: 0,
+        count_90d: 5,
+      },
+    ]);
+
+    const service = createMedicineAnalyticsService({
+      models,
+      now: () => new Date('2026-04-18T12:00:00.000Z'),
+    });
+
+    const analytics = await service.getAnalytics();
+    expect(analytics.tradeName[0]).toMatchObject({
+      key: 'aspirin',
+      isResolved: true,
+      resolvedAt: resolvedAt.toISOString(),
+    });
   });
 
   test('maps ignored rows including dimension values and source texts', async () => {

@@ -9,6 +9,7 @@
       'hero.eyebrow': 'Аналитика лекарств из Telegram',
       'aria.statusOverview': 'Обзор статуса сервиса',
       'aria.counterViews': 'Виды счётчиков лекарств',
+      'aria.resolvedFilter': 'Фильтр по статусу решения',
       'aria.language': 'Язык',
       'aria.medicineSearch': 'Поиск лекарства',
 
@@ -96,6 +97,16 @@
       'row.commentPrompt': 'Комментарий для «{label}» (оставьте пустым, чтобы удалить):',
       'row.commentSaved': 'Комментарий сохранён для «{label}».',
       'row.commentRemoved': 'Комментарий удалён для «{label}».',
+      'row.resolveButton': 'Отметить решённым',
+      'row.unresolveButton': 'Снять решение',
+      'row.resolved': 'Решено',
+      'row.resolvedAt': 'Решено: {date}',
+      'row.resolvedToast': '«{label}» отмечено как решённое.',
+      'row.unresolvedToast': 'Решение снято для «{label}».',
+
+      'filter.all': 'Все',
+      'filter.resolved': 'Решённые',
+      'filter.unresolved': 'Нерешённые',
 
       'reset.created': 'Сброс создан для «{label}».',
       'reset.removed': 'Последний сброс удалён для «{label}».',
@@ -112,6 +123,7 @@
       'hero.eyebrow': 'Telegram’даги дори аналитикаси',
       'aria.statusOverview': 'Хизмат ҳолатини кўриш',
       'aria.counterViews': 'Дори ҳисоблагичлар кўриниши',
+      'aria.resolvedFilter': 'Ҳал қилинганлик бўйича фильтр',
       'aria.language': 'Тил',
       'aria.medicineSearch': 'Дорини қидириш',
 
@@ -199,6 +211,16 @@
       'row.commentPrompt': '«{label}» учун изоҳ (бўш қолдирсангиз ўчирилади):',
       'row.commentSaved': '«{label}» учун изоҳ сақланди.',
       'row.commentRemoved': '«{label}» учун изоҳ ўчирилди.',
+      'row.resolveButton': 'Ҳал қилинган деб белгилаш',
+      'row.unresolveButton': 'Ҳал қилинганлигини олиб ташлаш',
+      'row.resolved': 'Ҳал қилинган',
+      'row.resolvedAt': 'Ҳал қилинган: {date}',
+      'row.resolvedToast': '«{label}» ҳал қилинган деб белгиланди.',
+      'row.unresolvedToast': '«{label}» учун ҳал қилинганлик олиб ташланди.',
+
+      'filter.all': 'Барчаси',
+      'filter.resolved': 'Ҳал қилинганлар',
+      'filter.unresolved': 'Ҳал қилинмаганлар',
 
       'reset.created': '«{label}» учун сброс яратилди.',
       'reset.removed': '«{label}» учун охирги сброс олиб ташланди.',
@@ -215,6 +237,7 @@
       'hero.eyebrow': 'Telegramdagi dori tahlili',
       'aria.statusOverview': 'Xizmat holati ko‘rinishi',
       'aria.counterViews': 'Dori hisoblagichlari ko‘rinishi',
+      'aria.resolvedFilter': 'Hal qilinganlik bo‘yicha filtr',
       'aria.language': 'Til',
       'aria.medicineSearch': 'Dorini qidirish',
 
@@ -303,6 +326,16 @@
       'row.commentPrompt': '«{label}» uchun izoh (bo‘sh qoldirsangiz o‘chiriladi):',
       'row.commentSaved': '«{label}» uchun izoh saqlandi.',
       'row.commentRemoved': '«{label}» uchun izoh o‘chirildi.',
+      'row.resolveButton': 'Hal qilingan deb belgilash',
+      'row.unresolveButton': 'Hal qilinganligini olib tashlash',
+      'row.resolved': 'Hal qilingan',
+      'row.resolvedAt': 'Hal qilingan: {date}',
+      'row.resolvedToast': '«{label}» hal qilingan deb belgilandi.',
+      'row.unresolvedToast': '«{label}» uchun hal qilinganlik olib tashlandi.',
+
+      'filter.all': 'Barchasi',
+      'filter.resolved': 'Hal qilinganlar',
+      'filter.unresolved': 'Hal qilinmaganlar',
 
       'reset.created': '«{label}» uchun sbros yaratildi.',
       'reset.removed': '«{label}» uchun oxirgi sbros olib tashlandi.',

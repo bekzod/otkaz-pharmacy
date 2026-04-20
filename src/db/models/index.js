@@ -7,6 +7,7 @@ const ResetPoint = require('./ResetPoint');
 const IgnoredSourceText = require('./IgnoredSourceText');
 const IgnoredDimensionValue = require('./IgnoredDimensionValue');
 const RowComment = require('./RowComment');
+const RowResolution = require('./RowResolution');
 
 module.exports = {
   sequelize,
@@ -18,4 +19,5 @@ module.exports = {
   IgnoredSourceText,
   IgnoredDimensionValue,
   RowComment,
+  RowResolution,
 };

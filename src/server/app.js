@@ -150,6 +150,40 @@ function createApp({
       }
     });
 
+    app.post('/api/medicine-analytics/resolutions', async (req, res) => {
+      try {
+        const payload = await medicineAnalyticsService.resolveRow({
+          dimension: req.body?.dimension,
+          resetKey: req.body?.resetKey,
+        });
+
+        res.status(201).json({
+          ok: true,
+          ...payload,
+        });
+        triggerDashboardUpdate();
+      } catch (error) {
+        sendError(res, error);
+      }
+    });
+
+    app.delete('/api/medicine-analytics/resolutions', async (req, res) => {
+      try {
+        const payload = await medicineAnalyticsService.unresolveRow({
+          dimension: req.body?.dimension,
+          resetKey: req.body?.resetKey,
+        });
+
+        res.json({
+          ok: true,
+          ...payload,
+        });
+        triggerDashboardUpdate();
+      } catch (error) {
+        sendError(res, error);
+      }
+    });
+
     app.post('/api/medicine-analytics/ignore', async (req, res) => {
       try {
         const payload = await medicineAnalyticsService.ignoreDimensionValue({
