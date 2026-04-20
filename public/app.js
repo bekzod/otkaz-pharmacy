@@ -228,50 +228,75 @@ function renderLoadingRow(message) {
   tableBody.replaceChildren(row);
 }
 
+let activeMenuCleanup = null;
+let activeMenu = null;
+
+function teardownActiveMenu() {
+  if (activeMenuCleanup) {
+    activeMenuCleanup();
+    activeMenuCleanup = null;
+  }
+  if (activeMenu) {
+    const panel = activeMenu.querySelector('.row-menu-panel');
+    if (panel) {
+      panel.style.left = '';
+      panel.style.top = '';
+      panel.style.visibility = '';
+    }
+  }
+  activeMenu = null;
+}
+
 function updateMenuDirection(menu) {
   if (!menu) return;
-
   const panel = menu.querySelector('.row-menu-panel');
   if (!panel) return;
 
   if (!menu.open) {
-    panel.style.top = '';
-    panel.style.left = '';
+    if (activeMenu === menu) teardownActiveMenu();
     return;
   }
 
   const summary = menu.querySelector('summary');
   if (!summary) return;
 
-  const summaryRect = summary.getBoundingClientRect();
-  const panelHeight = panel.offsetHeight || panel.scrollHeight || 0;
-  const panelWidth = panel.offsetWidth || panel.scrollWidth || 0;
-  const viewportHeight = window.innerHeight;
-  const viewportWidth = window.innerWidth;
+  const floatingApi = window.FloatingUIDOM;
+  if (!floatingApi) return;
 
-  const spaceBelow = viewportHeight - summaryRect.bottom;
-  const opensUpward = panelHeight + 12 > spaceBelow && summaryRect.top > panelHeight + 12;
+  if (activeMenu && activeMenu !== menu) teardownActiveMenu();
+  activeMenu = menu;
 
-  const left = Math.max(8, Math.min(summaryRect.right - panelWidth, viewportWidth - panelWidth - 8));
-  const top = opensUpward
-    ? Math.max(8, summaryRect.top - panelHeight - 6)
-    : summaryRect.bottom + 6;
+  const { computePosition, autoUpdate, flip, shift, offset } = floatingApi;
 
-  panel.style.left = `${left}px`;
-  panel.style.top = `${top}px`;
-}
+  panel.style.visibility = 'hidden';
 
-let menuRepositionScheduled = false;
-function scheduleMenuReposition() {
-  if (menuRepositionScheduled) return;
-  menuRepositionScheduled = true;
-  window.requestAnimationFrame(() => {
-    menuRepositionScheduled = false;
-    document.querySelectorAll('.row-menu[open]').forEach(updateMenuDirection);
+  activeMenuCleanup = autoUpdate(summary, panel, () => {
+    computePosition(summary, panel, {
+      placement: 'bottom-end',
+      middleware: [offset(6), flip({ padding: 8 }), shift({ padding: 8 })],
+    }).then(({ x, y }) => {
+      Object.assign(panel.style, {
+        left: `${x}px`,
+        top: `${y}px`,
+        visibility: 'visible',
+      });
+    });
   });
 }
-window.addEventListener('scroll', scheduleMenuReposition, { passive: true, capture: true });
-window.addEventListener('resize', scheduleMenuReposition, { passive: true });
+
+document.addEventListener(
+  'toggle',
+  (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement) || !target.classList.contains('row-menu')) return;
+    if (target.open) {
+      updateMenuDirection(target);
+    } else if (activeMenu === target) {
+      teardownActiveMenu();
+    }
+  },
+  true,
+);
 
 function normalizeSearchValue(value) {
   return String(value || '')
@@ -922,6 +947,7 @@ function renderAnalytics() {
     fragment.appendChild(tr);
   });
 
+  teardownActiveMenu();
   tableBody.replaceChildren(fragment);
   if (state.openMenuKey && !openMenuStillExists) {
     state.openMenuKey = null;
@@ -1177,14 +1203,123 @@ async function mutateResolution(action, dimension, resetKey, label) {
   }
 }
 
-async function editRowComment(dimension, resetKey, label, currentComment) {
-  const input = window.prompt(
-    t('row.commentPrompt', { label }),
-    currentComment || '',
-  );
-  if (input === null) return;
+function openCommentModal(label, currentComment) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
 
-  const trimmed = input.trim();
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+
+    const title = document.createElement('h3');
+    title.className = 'modal-title';
+    title.textContent = t('row.commentPrompt', { label });
+
+    const textarea = document.createElement('textarea');
+    textarea.className = 'modal-textarea';
+    textarea.rows = 5;
+    textarea.value = currentComment || '';
+    textarea.placeholder = t('row.commentPlaceholder');
+
+    const actions = document.createElement('div');
+    actions.className = 'modal-actions';
+
+    const cancelButton = document.createElement('button');
+    cancelButton.type = 'button';
+    cancelButton.className = 'modal-button modal-button--secondary';
+    cancelButton.textContent = t('modal.cancel');
+
+    const saveButton = document.createElement('button');
+    saveButton.type = 'button';
+    saveButton.className = 'modal-button modal-button--primary';
+    saveButton.textContent = t('modal.save');
+
+    const leftGroup = document.createElement('div');
+    leftGroup.className = 'modal-actions-left';
+    if (currentComment) {
+      const deleteButton = document.createElement('button');
+      deleteButton.type = 'button';
+      deleteButton.className = 'modal-button modal-button--danger';
+      deleteButton.textContent = t('modal.delete');
+      deleteButton.addEventListener('click', () => close({ action: 'delete' }));
+      leftGroup.appendChild(deleteButton);
+    }
+
+    const rightGroup = document.createElement('div');
+    rightGroup.className = 'modal-actions-right';
+    rightGroup.appendChild(cancelButton);
+    rightGroup.appendChild(saveButton);
+
+    actions.appendChild(leftGroup);
+    actions.appendChild(rightGroup);
+
+    modal.appendChild(title);
+    modal.appendChild(textarea);
+    modal.appendChild(actions);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    let settled = false;
+    const close = (value) => {
+      if (settled) return;
+      settled = true;
+      overlay.classList.remove('is-visible');
+      document.removeEventListener('keydown', onKeydown);
+      setTimeout(() => overlay.remove(), 200);
+      resolve(value);
+    };
+
+    const onKeydown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        close(null);
+      } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        close({ action: 'save', value: textarea.value });
+      }
+    };
+
+    cancelButton.addEventListener('click', () => close(null));
+    saveButton.addEventListener('click', () => close({ action: 'save', value: textarea.value }));
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) close(null);
+    });
+    document.addEventListener('keydown', onKeydown);
+
+    window.requestAnimationFrame(() => {
+      overlay.classList.add('is-visible');
+      textarea.focus();
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    });
+  });
+}
+
+async function editRowComment(dimension, resetKey, label, currentComment) {
+  const result = await openCommentModal(label, currentComment);
+  if (!result) return;
+
+  if (result.action === 'delete') {
+    if (!currentComment) return;
+    setBusy(true);
+    try {
+      await requestJson('/api/medicine-analytics/comments', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dimension, resetKey }),
+      });
+      setBanner(t('row.commentRemoved', { label }), 'success');
+      await refreshDashboard({ keepBanner: true });
+    } catch (error) {
+      setBanner(error.message, 'error');
+    } finally {
+      setBusy(false);
+    }
+    return;
+  }
+
+  const trimmed = (result.value || '').trim();
   const isDelete = trimmed === '';
 
   if (isDelete && !currentComment) {
