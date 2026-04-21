@@ -158,6 +158,14 @@ function createDashboardSocketHub({
       throw new Error('attach requires a server');
     }
 
+    if (attachedServer) {
+      attachedServer.off('upgrade', handleUpgrade);
+    }
+    if (interval) {
+      clearInterval(interval);
+      interval = null;
+    }
+
     attachedServer = server;
     attachedServer.on('upgrade', handleUpgrade);
     interval = setInterval(() => {
