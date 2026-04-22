@@ -851,7 +851,7 @@ function renderAnalytics() {
     }
     tr.appendChild(lastResetCell);
 
-    ['count1d', 'count3d', 'count30d'].forEach((field) => {
+    ['count1d', 'count3d', 'count15d', 'count30d'].forEach((field) => {
       const countCell = document.createElement('td');
       countCell.className = 'count-cell';
       countCell.textContent = formatCount(row[field]);
@@ -980,6 +980,7 @@ function didRowsChange(previousRows = [], nextRows = []) {
       previousRow.lastResetAt !== row.lastResetAt ||
       previousRow.count1d !== row.count1d ||
       previousRow.count3d !== row.count3d ||
+      previousRow.count15d !== row.count15d ||
       previousRow.count30d !== row.count30d ||
       previousRow.count90d !== row.count90d ||
       previousRow.canUndoLastReset !== row.canUndoLastReset ||

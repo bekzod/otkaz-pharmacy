@@ -74,6 +74,7 @@ describe('dashboard websocket hub', () => {
               label: 'Paracetamol',
               count1d: 2,
               count3d: 2,
+              count15d: 2,
               count30d: 2,
               count90d: 2,
               lastResetAt: null,
