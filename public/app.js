@@ -860,13 +860,6 @@ function renderAnalytics() {
       labelCell.appendChild(badge);
     }
 
-    if (row.medicineId && row.medicineId !== row.label) {
-      const medicineId = document.createElement('div');
-      medicineId.className = 'cell-meta';
-      medicineId.textContent = t('row.id', { id: row.medicineId });
-      labelCell.appendChild(medicineId);
-    }
-
     if (row.comment) {
       const commentLine = document.createElement('div');
       commentLine.className = 'cell-meta cell-comment';
