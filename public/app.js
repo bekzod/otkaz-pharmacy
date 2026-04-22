@@ -47,6 +47,40 @@ function formatCount(value) {
   return new Intl.NumberFormat().format(Number(value || 0));
 }
 
+
+function getOrCreateVisitorId() {
+  const storageKey = 'otkaz.visitorId';
+  const existing = window.localStorage?.getItem(storageKey);
+  if (existing) return existing;
+
+  const generated =
+    window.crypto?.randomUUID?.().replace(/[^a-zA-Z0-9_-]/g, '') ||
+    `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+
+  window.localStorage?.setItem(storageKey, generated);
+  return generated;
+}
+
+async function refreshDailyVisitors() {
+  try {
+    if (!state.visitorId) {
+      state.visitorId = getOrCreateVisitorId();
+    }
+
+    const payload = await requestJson('/api/visitors/daily', {
+      headers: {
+        'X-Visitor-Id': state.visitorId,
+      },
+    });
+
+    setText('daily-visitors', formatCount(payload.dailyVisitors));
+    setText('visitor-id-status', t('status.visitorsForDate', { date: payload.date }));
+  } catch (error) {
+    setText('daily-visitors', t('status.unavailable'));
+    setText('visitor-id-status', error.message);
+  }
+}
+
 const VIEW_CONFIG = {
   tradeName: {
     dimension: 'trade_name',
@@ -190,6 +224,7 @@ const state = {
   chartBusy: false,
   chartRequestId: 0,
   chartData: null,
+  visitorId: null,
   lastStatusPayload: null,
   socket: null,
   socketConnected: false,
@@ -1073,6 +1108,7 @@ async function refreshDashboard({ keepBanner = false } = {}) {
       requestJson('/api/medicine-analytics'),
     ]);
     await applyDashboardSnapshot({ statusPayload, analyticsPayload, keepBanner });
+    await refreshDailyVisitors();
   } catch (error) {
     setText('server-state', t('status.error'));
     setText('server-uptime', t('status.requestFailed'));
@@ -1080,6 +1116,8 @@ async function refreshDashboard({ keepBanner = false } = {}) {
     setText('crawler-iteration', t('status.retrying'));
     setText('analytics-updated', t('status.unavailable'));
     setText('last-error', error.message);
+    setText('daily-visitors', t('status.unavailable'));
+    setText('visitor-id-status', t('status.requestFailed'));
     renderLoadingRow(t('table.loadFailed'));
     setBanner(error.message, 'error');
   }
@@ -1541,6 +1579,7 @@ function initLanguage() {
     window.i18n.applyStaticTranslations();
     renderAnalytics();
     renderChart();
+    refreshDailyVisitors();
     if (state.lastStatusPayload) {
       renderStatus(state.lastStatusPayload);
     }
@@ -1549,6 +1588,8 @@ function initLanguage() {
 
 initLanguage();
 renderLoadingRow(t('table.loading'));
+setText('daily-visitors', t('status.loading'));
+setText('visitor-id-status', t('status.visitorsInfoLoading'));
 refreshDashboard();
 connectDashboardSocket();
 setInterval(() => {

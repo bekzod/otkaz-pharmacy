@@ -2,7 +2,7 @@ const http = require('node:http');
 
 const { createApp } = require('../src/server/app');
 
-function requestJson(url, { method = 'GET', body } = {}) {
+function requestJson(url, { method = 'GET', body, headers = {} } = {}) {
   return new Promise((resolve, reject) => {
     const payload = body ? JSON.stringify(body) : null;
     const requestUrl = new URL(url);
@@ -23,6 +23,7 @@ function requestJson(url, { method = 'GET', body } = {}) {
                 'content-length': Buffer.byteLength(payload),
               }
             : {}),
+          ...headers,
         },
       },
       (res) => {
@@ -179,6 +180,21 @@ describe('server entry point', () => {
       const baseUrl = `http://127.0.0.1:${server.address().port}`;
       const healthResponse = await requestJson(`${baseUrl}/health`);
       const statusResponse = await requestJson(`${baseUrl}/status`);
+      const visitorsFirstResponse = await requestJson(`${baseUrl}/api/visitors/daily`, {
+        headers: {
+          'x-visitor-id': 'visitor-alpha-12345',
+        },
+      });
+      const visitorsDuplicateResponse = await requestJson(`${baseUrl}/api/visitors/daily`, {
+        headers: {
+          'x-visitor-id': 'visitor-alpha-12345',
+        },
+      });
+      const visitorsSecondResponse = await requestJson(`${baseUrl}/api/visitors/daily`, {
+        headers: {
+          'x-visitor-id': 'visitor-beta-67890',
+        },
+      });
       const analyticsResponse = await requestJson(`${baseUrl}/api/medicine-analytics`);
       const ignoreDimensionResponse = await requestJson(
         `${baseUrl}/api/medicine-analytics/ignore`,
@@ -241,6 +257,22 @@ describe('server entry point', () => {
           running: true,
           totalIterations: 3,
         },
+      });
+
+      expect(visitorsFirstResponse.status).toBe(200);
+      expect(visitorsFirstResponse.json).toMatchObject({
+        ok: true,
+        dailyVisitors: 1,
+      });
+      expect(visitorsDuplicateResponse.status).toBe(200);
+      expect(visitorsDuplicateResponse.json).toMatchObject({
+        ok: true,
+        dailyVisitors: 1,
+      });
+      expect(visitorsSecondResponse.status).toBe(200);
+      expect(visitorsSecondResponse.json).toMatchObject({
+        ok: true,
+        dailyVisitors: 2,
       });
 
       expect(analyticsResponse.status).toBe(200);

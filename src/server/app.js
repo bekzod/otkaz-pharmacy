@@ -1,5 +1,6 @@
 const path = require('path');
 const express = require('express');
+const { createDailyVisitorCounter, sanitizeVisitorId } = require('./dailyVisitorCounter');
 
 function createApp({
   crawlerService,
@@ -8,6 +9,7 @@ function createApp({
   now = () => new Date(),
   startedAt = now(),
   notifyDashboardUpdate,
+  dailyVisitorCounter = createDailyVisitorCounter({ now }),
 } = {}) {
   if (!crawlerService || typeof crawlerService.getCrawlerStatus !== 'function') {
     throw new Error('createApp requires a crawlerService with getCrawlerStatus()');
@@ -21,6 +23,21 @@ function createApp({
   function triggerDashboardUpdate() {
     if (typeof notifyDashboardUpdate !== 'function') return;
     Promise.resolve(notifyDashboardUpdate()).catch(() => {});
+  }
+
+
+  function readCookieValue(cookieHeader, key) {
+    if (!cookieHeader || typeof cookieHeader !== 'string') return null;
+
+    const entries = cookieHeader.split(';');
+    for (const entry of entries) {
+      const [rawName, ...rawValueParts] = entry.split('=');
+      if (!rawName || !rawValueParts.length) continue;
+      if (rawName.trim() !== key) continue;
+      return decodeURIComponent(rawValueParts.join('=').trim());
+    }
+
+    return null;
   }
 
   function sendError(res, error) {
@@ -43,6 +60,29 @@ function createApp({
         uptimeMs: Date.now() - bootedAt.getTime(),
       },
       crawler: crawlerService.getCrawlerStatus(),
+    });
+  });
+
+
+  app.get('/api/visitors/daily', (req, res) => {
+    const cookieVisitorId = readCookieValue(req.headers.cookie, 'otkaz_visitor_id');
+    const headerVisitorId = sanitizeVisitorId(req.headers['x-visitor-id']);
+    const payload = dailyVisitorCounter.recordVisit(headerVisitorId || cookieVisitorId);
+
+    if (payload.visitorId !== cookieVisitorId) {
+      res.cookie('otkaz_visitor_id', payload.visitorId, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: req.secure,
+        path: '/',
+        maxAge: 1000 * 60 * 60 * 24 * 365,
+      });
+    }
+
+    res.json({
+      ok: true,
+      date: payload.date,
+      dailyVisitors: payload.dailyVisitors,
     });
   });
 
