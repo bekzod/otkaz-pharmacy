@@ -128,4 +128,35 @@ describe('dashboard websocket hub', () => {
       await close(server);
     }
   });
+
+  test('re-attach does not leak duplicate upgrade listeners', async () => {
+    const crawlerService = {
+      getCrawlerStatus: jest.fn(() => ({ state: 'idle' })),
+    };
+    const medicineAnalyticsService = {
+      getAnalytics: jest.fn().mockResolvedValue({
+        generatedAt: '2026-04-18T10:00:00.000Z',
+        name: [],
+        tradeName: [],
+        medicineId: [],
+      }),
+    };
+
+    const server = await listen(http.createServer());
+    const hub = createDashboardSocketHub({
+      crawlerService,
+      medicineAnalyticsService,
+      broadcastIntervalMs: 60000,
+    });
+
+    try {
+      hub.attach(server);
+      hub.attach(server);
+
+      expect(server.listenerCount('upgrade')).toBe(1);
+    } finally {
+      await hub.close();
+      await close(server);
+    }
+  });
 });
