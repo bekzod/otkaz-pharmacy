@@ -7,6 +7,7 @@ function makeRow(overrides) {
     lastResetAt: overrides.lastResetAt ?? null,
     count1d: overrides.count1d ?? 0,
     count3d: overrides.count3d ?? 0,
+    count15d: overrides.count15d ?? 0,
     count30d: overrides.count30d ?? 0,
     ...overrides,
   };
@@ -14,10 +15,10 @@ function makeRow(overrides) {
 
 describe('sortRows', () => {
   const rows = [
-    makeRow({ key: 'a', label: 'Aspirin', count1d: 5, count3d: 10, count30d: 80, lastResetAt: '2026-04-15T00:00:00Z' }),
-    makeRow({ key: 'b', label: 'Paracetamol', count1d: 20, count3d: 40, count30d: 100, lastResetAt: null }),
-    makeRow({ key: 'c', label: 'Ibuprofen', count1d: 12, count3d: 12, count30d: 90, lastResetAt: '2026-04-10T00:00:00Z' }),
-    makeRow({ key: 'd', label: 'Amoxicillin', count1d: 20, count3d: 30, count30d: 60, lastResetAt: '2026-04-18T00:00:00Z' }),
+    makeRow({ key: 'a', label: 'Aspirin', count1d: 5, count3d: 10, count15d: 30, count30d: 80, lastResetAt: '2026-04-15T00:00:00Z' }),
+    makeRow({ key: 'b', label: 'Paracetamol', count1d: 20, count3d: 40, count15d: 60, count30d: 100, lastResetAt: null }),
+    makeRow({ key: 'c', label: 'Ibuprofen', count1d: 12, count3d: 12, count15d: 50, count30d: 90, lastResetAt: '2026-04-10T00:00:00Z' }),
+    makeRow({ key: 'd', label: 'Amoxicillin', count1d: 20, count3d: 30, count15d: 20, count30d: 60, lastResetAt: '2026-04-18T00:00:00Z' }),
   ];
 
   test('returns the input array unchanged when column is null', () => {
@@ -33,6 +34,11 @@ describe('sortRows', () => {
   test('sorts by count1d ascending', () => {
     const result = sortRows(rows, { column: 'count1d', direction: 'asc' });
     expect(result.map((r) => r.key)).toEqual(['a', 'c', 'b', 'd']);
+  });
+
+  test('sorts by count15d descending', () => {
+    const result = sortRows(rows, { column: 'count15d', direction: 'desc' });
+    expect(result.map((r) => r.key)).toEqual(['b', 'c', 'a', 'd']);
   });
 
   test('sorts by label ascending (locale-aware)', () => {

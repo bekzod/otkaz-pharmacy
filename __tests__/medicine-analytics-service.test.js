@@ -570,6 +570,7 @@ describe('medicine analytics service', () => {
         comment: null,
         count_1d: 0,
         count_3d: 0,
+        count_15d: 0,
         count_30d: 0,
         count_90d: 5,
       },

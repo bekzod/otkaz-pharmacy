@@ -280,6 +280,12 @@ function buildDimensionQuery(dimension) {
       COUNT(re.event_at) FILTER (
         WHERE re.event_at >= GREATEST(
           COALESCE(lr.last_reset_at, 'epoch'::timestamptz),
+          CAST(:now AS timestamptz) - INTERVAL '15 days'
+        )
+      )::int AS count_15d,
+      COUNT(re.event_at) FILTER (
+        WHERE re.event_at >= GREATEST(
+          COALESCE(lr.last_reset_at, 'epoch'::timestamptz),
           CAST(:now AS timestamptz) - INTERVAL '30 days'
         )
       )::int AS count_30d,
@@ -298,7 +304,13 @@ function buildDimensionQuery(dimension) {
       AND rc.row_key = cr.reset_key
       AND rc.deleted_at IS NULL
     GROUP BY cr.reset_key, lr.last_reset_at, lres.resolved_at
-    ORDER BY count_90d DESC, count_30d DESC, count_3d DESC, count_1d DESC, label ASC
+    ORDER BY
+      count_90d DESC,
+      count_30d DESC,
+      count_15d DESC,
+      count_3d DESC,
+      count_1d DESC,
+      label ASC
   `;
 }
 
@@ -458,6 +470,7 @@ function mapDimensionRow(row, activeNow) {
     medicineId: row.medicine_id || null,
     count1d: Number(row.count_1d || 0),
     count3d: Number(row.count_3d || 0),
+    count15d: Number(row.count_15d || 0),
     count30d: Number(row.count_30d || 0),
     count90d: Number(row.count_90d || 0),
     lastResetAt: lastResetAt ? lastResetAt.toISOString() : null,

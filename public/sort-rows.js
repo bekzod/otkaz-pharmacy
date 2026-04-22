@@ -1,5 +1,5 @@
 (function (global) {
-  const NUMERIC_COLUMNS = new Set(['count1d', 'count3d', 'count30d']);
+  const NUMERIC_COLUMNS = new Set(['count1d', 'count3d', 'count15d', 'count30d']);
 
   function toNumber(value) {
     const parsed = Number(value);
