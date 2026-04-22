@@ -34,6 +34,9 @@
       'status.iterations': 'Итераций: {n}, групп: {g}',
       'status.requestFailed': 'Запрос статуса не выполнен',
       'status.retrying': 'Повтор попытки',
+      'status.dailyVisitors': 'Посетители за день',
+      'status.visitorsInfoLoading': 'Загрузка статистики посетителей',
+      'status.visitorsForDate': 'Уникальные за {date}',
 
       'counters.kicker': 'Счётчики',
       'counters.heading': 'Упоминания лекарств',
@@ -152,6 +155,9 @@
       'status.iterations': 'Итерациялар: {n}, гуруҳлар: {g}',
       'status.requestFailed': 'Ҳолат сўрови бажарилмади',
       'status.retrying': 'Қайта уринмоқда',
+      'status.dailyVisitors': 'Кунлик ташриф буюрувчилар',
+      'status.visitorsInfoLoading': 'Ташриф статистикаси юкланмоқда',
+      'status.visitorsForDate': '{date} учун уникаллар',
 
       'counters.kicker': 'Ҳисоблагичлар',
       'counters.heading': 'Дори эслатмалари',
@@ -270,6 +276,9 @@
       'status.iterations': 'Iteratsiyalar: {n}, guruhlar: {g}',
       'status.requestFailed': 'Holat so‘rovi bajarilmadi',
       'status.retrying': 'Qayta urinilmoqda',
+      'status.dailyVisitors': 'Kunlik tashrif buyuruvchilar',
+      'status.visitorsInfoLoading': 'Tashrif statistikasi yuklanmoqda',
+      'status.visitorsForDate': '{date} uchun unikal',
 
       'counters.kicker': 'Hisoblagichlar',
       'counters.heading': 'Dori eslatmalari',
