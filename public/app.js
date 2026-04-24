@@ -247,9 +247,23 @@ function clearBanner() {
   // Toasts auto-dismiss; nothing to clear on routine refresh.
 }
 
+function getTableScrollTop() {
+  const tableWrap = document.querySelector('.table-wrap');
+  if (!tableWrap) return null;
+  return tableWrap.scrollTop;
+}
+
+function restoreTableScrollTop(scrollTop) {
+  if (scrollTop === null) return;
+  const tableWrap = document.querySelector('.table-wrap');
+  if (!tableWrap) return;
+  tableWrap.scrollTop = scrollTop;
+}
+
 function renderLoadingRow(message) {
   const tableBody = document.getElementById('medicine-table-body');
   if (!tableBody) return;
+  const previousScrollTop = getTableScrollTop();
   state.openMenuKey = null;
 
   const row = document.createElement('tr');
@@ -261,6 +275,7 @@ function renderLoadingRow(message) {
   row.appendChild(cell);
 
   tableBody.replaceChildren(row);
+  restoreTableScrollTop(previousScrollTop);
 }
 
 let activeMenuCleanup = null;
@@ -795,6 +810,7 @@ function renderChart() {
 }
 
 function renderAnalytics() {
+  const previousScrollTop = getTableScrollTop();
   updateToolbarState();
 
   const config = VIEW_CONFIG[state.activeView];
@@ -815,12 +831,14 @@ function renderAnalytics() {
   if (!allRows.length) {
     renderLoadingRow(t(config.emptyKey));
     syncSortIndicators();
+    restoreTableScrollTop(previousScrollTop);
     return;
   }
 
   if (!rows.length) {
     renderLoadingRow(t('search.noResults', { query: searchQuery }));
     syncSortIndicators();
+    restoreTableScrollTop(previousScrollTop);
     return;
   }
 
@@ -987,6 +1005,7 @@ function renderAnalytics() {
   }
 
   syncSortIndicators();
+  restoreTableScrollTop(previousScrollTop);
 }
 
 function areSelectionsEqual(left, right) {
