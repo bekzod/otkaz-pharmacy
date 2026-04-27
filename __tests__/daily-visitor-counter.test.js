@@ -25,4 +25,19 @@ describe('daily visitor counter', () => {
     expect(sanitizeVisitorId('bad id')).toBeNull();
     expect(sanitizeVisitorId('')).toBeNull();
   });
+
+  test('switches to bounded overflow tracking when visitor count is high', () => {
+    const counter = createDailyVisitorCounter({
+      now: () => new Date('2026-04-22T09:00:00.000Z'),
+      maxVisitorsInMemory: 2,
+    });
+
+    const first = counter.recordVisit('visitor-alpha-12345');
+    const second = counter.recordVisit('visitor-beta-67890');
+    const third = counter.recordVisit('visitor-charlie-12345');
+
+    expect(first.dailyVisitors).toBe(1);
+    expect(second.dailyVisitors).toBe(2);
+    expect(third.dailyVisitors).toBeGreaterThanOrEqual(3);
+  });
 });
