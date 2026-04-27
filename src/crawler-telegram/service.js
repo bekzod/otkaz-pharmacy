@@ -22,6 +22,21 @@ const OPENAI_IMAGE_TEXT_MODEL = 'gpt-5-mini';
 const OPENAI_IMAGE_TEXT_TIMEOUT_MS = 30000;
 const OPENAI_IMAGE_TEXT_RETRY_ATTEMPTS = 3;
 const OPENAI_IMAGE_TEXT_RETRY_BASE_DELAY_MS = 500;
+const TELEGRAM_IMAGE_BASE_ATTRIBUTES = [
+  'id',
+  'message_id',
+  'telegram_photo_id',
+  'mime_type',
+  'file_name',
+  'width',
+  'height',
+  'size_bytes',
+  'text_extraction_status',
+  'text_extraction_model',
+  'text_extracted_lines',
+  'text_extraction_error',
+  'text_extracted_at',
+];
 
 function wait(ms = 3000) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -482,7 +497,10 @@ function createCrawlerService({
       where.telegram_photo_id = meta.telegram_photo_id;
     }
 
-    const existing = await TelegramMessageImage.findOne({ where });
+    const existing = await TelegramMessageImage.findOne({
+      where,
+      attributes: TELEGRAM_IMAGE_BASE_ATTRIBUTES,
+    });
     if (existing) return existing;
 
     try {
@@ -581,25 +599,53 @@ function createCrawlerService({
       return (imageRecord.text_extracted_lines || []).map((line) => normalizeCapturedText(line)).filter(Boolean);
     }
 
-    const result = await activeImageTextExtractor.extractLines({
-      buffer: imageRecord.data,
-      mimeType: imageRecord.mime_type || 'image/jpeg',
-      label: `message ${row.message_id} image ${imageRecord.id}`,
-    });
-
-    if (typeof imageRecord.update === 'function') {
-      await imageRecord.update({
-        text_extraction_status: result.status,
-        text_extraction_model: result.model,
-        text_extracted_lines: result.status === 'completed' ? result.lines : null,
-        text_extraction_error: result.errorMessage,
-        text_extracted_at: time.now(),
+    let imageBuffer = imageRecord.data;
+    if (!Buffer.isBuffer(imageBuffer) || imageBuffer.length === 0) {
+      const withData = await TelegramMessageImage.findByPk(imageRecord.id, {
+        attributes: ['id', 'data'],
       });
+      imageBuffer = withData?.data;
     }
 
-    if (result.status !== 'completed') return [];
+    if (!Buffer.isBuffer(imageBuffer) || imageBuffer.length === 0) {
+      if (typeof imageRecord.update === 'function') {
+        await imageRecord.update({
+          text_extraction_status: 'failed',
+          text_extraction_model: null,
+          text_extracted_lines: null,
+          text_extraction_error: 'image data is missing',
+          text_extracted_at: time.now(),
+        });
+      }
+      return [];
+    }
 
-    return result.lines.map((line) => normalizeCapturedText(line)).filter(Boolean);
+    try {
+      const result = await activeImageTextExtractor.extractLines({
+        buffer: imageBuffer,
+        mimeType: imageRecord.mime_type || 'image/jpeg',
+        label: `message ${row.message_id} image ${imageRecord.id}`,
+      });
+
+      if (typeof imageRecord.update === 'function') {
+        await imageRecord.update({
+          text_extraction_status: result.status,
+          text_extraction_model: result.model,
+          text_extracted_lines: result.status === 'completed' ? result.lines : null,
+          text_extraction_error: result.errorMessage,
+          text_extracted_at: time.now(),
+        });
+      }
+
+      if (result.status !== 'completed') return [];
+
+      return result.lines.map((line) => normalizeCapturedText(line)).filter(Boolean);
+    } finally {
+      if (Object.prototype.hasOwnProperty.call(imageRecord, 'data')) {
+        imageRecord.data = null;
+      }
+      imageBuffer = null;
+    }
   }
 
   async function processMedicineEntries(messageRecord, row, imageRecords) {
