@@ -45,6 +45,9 @@ function createMemoryModels() {
       async findOne({ where }) {
         return images.find((record) => matchesWhere(record, where)) || null;
       },
+      async findByPk(id) {
+        return images.find((record) => String(record.id) === String(id)) || null;
+      },
       async create(attributes) {
         return createUpdatableRecord(images, 'image', attributes);
       },
@@ -497,5 +500,89 @@ describe('crawler service', () => {
       source_type: 'image_line',
       source_text: 'синупрет таб',
     });
+  });
+
+  test('reloads image bytes by id when existing image metadata is loaded without data blob', async () => {
+    const models = createMemoryModels();
+    const medicineResolver = {
+      resolve: jest.fn().mockResolvedValue({
+        resolverStatus: 'resolved',
+        medicineId: 'medicine-line-1',
+        parserResult: { normalized_query: 'парацетамол 500 мг' },
+      }),
+    };
+    const imageTextExtractor = {
+      extractLines: jest.fn().mockResolvedValue({
+        status: 'completed',
+        model: 'gpt-5-mini',
+        lines: ['парацетамол 500 мг'],
+        errorMessage: null,
+      }),
+    };
+
+    const imageRecord = createUpdatableRecord(models.__store.images, 'image', {
+      id: 'image-1',
+      message_id: 'message-1',
+      telegram_photo_id: 999,
+      mime_type: 'image/jpeg',
+      text_extraction_status: 'pending',
+      text_extracted_lines: null,
+      data: Buffer.from('first-image-bytes'),
+    });
+
+    const originalFindOne = models.TelegramMessageImage.findOne;
+    models.TelegramMessageImage.findOne = jest.fn(async ({ where }) => {
+      const record = await originalFindOne({ where });
+      if (!record) return null;
+      return { ...record, data: null };
+    });
+    models.TelegramMessageImage.findByPk = jest.fn(async (id) => {
+      if (String(id) !== String(imageRecord.id)) return null;
+      return { id: imageRecord.id, data: imageRecord.data };
+    });
+
+    const service = createCrawlerService({
+      models,
+      medicineResolver,
+      imageTextExtractor,
+      time: {
+        now: () => new Date('2026-04-18T10:00:00.000Z'),
+        wait: jest.fn().mockResolvedValue(),
+      },
+    });
+
+    const message = {
+      id: 500,
+      date: 1713348000,
+      message: '',
+      media: {
+        photo: {
+          id: 999,
+          sizes: [{ w: 100, h: 100 }],
+        },
+      },
+    };
+
+    await service.crawlGroup(
+      {
+        getMessages: jest.fn().mockResolvedValue([message]),
+        downloadMedia: jest.fn(),
+      },
+      {
+        id: 77,
+        name: 'Test Group',
+        update: jest.fn().mockResolvedValue(),
+        last_crawled_message_id: 100,
+      },
+    );
+
+    expect(models.TelegramMessageImage.findByPk).toHaveBeenCalledWith(imageRecord.id, {
+      attributes: ['id', 'data'],
+    });
+    expect(imageTextExtractor.extractLines).toHaveBeenCalledWith(
+      expect.objectContaining({
+        buffer: Buffer.from('first-image-bytes'),
+      }),
+    );
   });
 });
